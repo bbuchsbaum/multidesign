@@ -2,10 +2,10 @@
 % Please edit documentation in R/all_generic.R
 \name{xdata}
 \alias{xdata}
-\title{x data}
+\title{extract data}
 \usage{
 xdata(x, ...)
 }
 \description{
-get data block
+get the `x` data block
 }
