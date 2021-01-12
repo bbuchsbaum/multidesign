@@ -1,0 +1,74 @@
+#' @importFrom dplyr mutate rowwise n
+#' @export
+#' @examples
+#'
+#' X <- matrix(rnorm(20*100), 20, 100)
+#' Y <- tibble(condition=rep(letters[1:5], 4))
+#'
+#' mds <- multidesign(X,Y)
+#' @rdname multidesign
+multidesign.matrix <- function(x, y) {
+  chk::chk_equal(nrow(x), nrow(y))
+  chk::chk_s3_class(y, "data.frame")
+  y <- as_tibble(y)
+
+  des <- y %>% mutate(.index=1:n())
+  structure(list(
+    x=x,
+    design=tibble::as_tibble(des)
+  ),
+  class="multidesign")
+}
+
+#' @export
+subset.multidesign <- function(x, fexpr) {
+  des2 <- filter(x$design, !!rlang::enquo(fexpr))
+  ind <- des2$.index
+  multidesign(x$x[ind,], des2)
+}
+
+#' @export
+split.multidesign <- function(x, ..., collapse=FALSE) {
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
+  xl <- ret$data %>% purrr::map(~x$x[.x$.index,,drop=FALSE])
+  ret <- unlist(lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]])), recursive=FALSE)
+}
+
+#' @export
+split_indices.multidesign <- function(x, ..., collapse=FALSE) {
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
+  xl <- ret$data %>% purrr::map(~ .x$.index)
+  cvars <- ret %>% select(group_vars(ret)) %>% unite(nest.by) %>% pull("nest.by")
+  selret <- ret %>% select(group_vars(ret))
+  out <- selret %>% ungroup() %>% mutate(indices=xl, .splitvar=cvars)
+  out
+}
+
+
+#' @export
+summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
+  #nested <- split(x, ...)
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by)
+
+  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], drop=FALSE,])))
+  ret2 <- ret %>% select(-data)
+  multidesign(dsum, ret2)
+}
+
+#' @export
+xdata.multidesign <- function(x) x$x
+
+#' @export
+design.multidesign <- function(x) x$y
+
+#' @export
+print.multidesign <- function(x) {
+  cat("a multidesign object. \n")
+  cat(nrow(x$design), "rows", "\n")
+  cat(ncol(x$des), "design variables", "and", nrow(x$x), "response variables", "\n")
+  cat("design variables: ", "\n")
+  print(x$design, n=5)
+}
