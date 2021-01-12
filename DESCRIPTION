@@ -15,4 +15,5 @@ Imports:
     dplyr
 RoxygenNote: 7.1.0
 Suggests: 
-    covr
+    covr,
+    testthat

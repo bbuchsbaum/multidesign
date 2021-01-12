@@ -1,3 +1,14 @@
+#' create an observation object
+#'
+#' construct a new multivariate observation vector
+#'
+#' @param x the data source
+#' @param i the index of the observation
+#' @export
+observation <- function(x, i) UseMethod("observation")
+
+
+
 #' create an multidesign object
 #'
 #' construct a new multivariate design object linking vector-valued observations and arbitrary design variables
