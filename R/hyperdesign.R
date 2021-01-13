@@ -61,9 +61,9 @@ block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
   if (missing(i)) {
     lapply(1:nrow(hd), function(j) {
       if (byrow) {
-        seq(hd$row_start[i], hd$row_end[i])
+        seq(hd$row_start[j], hd$row_end[j])
       } else {
-        seq(hd$col_start[i], hd$col_end[i])
+        seq(hd$col_start[j], hd$col_end[j])
       }
     })
   } else {
