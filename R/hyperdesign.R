@@ -56,17 +56,28 @@ hyperdesign <- function(x, block_names=NULL) {
 #' @param byrow if true, return row-oriented indices
 block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
   hd <- attr(x, "hdes")
-  chk::chk_range(i, c(1, nrow(hd)))
-  if (byrow) {
-    seq(hd$row_start[i], hd$row_end[i])
+
+  if (missing(i)) {
+    lapply(1:nrow(hd), function(j) {
+      if (byrow) {
+        seq(hd$row_start[i], hd$row_end[i])
+      } else {
+        seq(hd$col_start[i], hd$col_end[i])
+      }
+    })
   } else {
-    seq(hd$col_start[i], hd$col_end[i])
+    chk::chk_range(i, c(1, nrow(hd)))
+    if (byrow) {
+      seq(hd$row_start[i], hd$row_end[i])
+    } else {
+      seq(hd$col_start[i], hd$col_end[i])
+    }
   }
 }
 
 #' @importFrom multivarious init_transform
-#' @export
 #' @return a transformed `hyperdesign` object, with pre-processors set as attribute named `preproc`
+#' @export
 init_transform.hyperdesign <- function(x, preproc) {
   ## pre-processors
   proclist <- lapply(seq_along(x), function(i) {
