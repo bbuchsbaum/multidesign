@@ -54,6 +54,7 @@ hyperdesign <- function(x, block_names=NULL) {
 #' @export
 #' @param i the block number
 #' @param byrow if true, return row-oriented indices
+#' @rdname block_indices
 block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
   hd <- attr(x, "hdes")
 
@@ -78,6 +79,7 @@ block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
 #' @importFrom multivarious init_transform
 #' @return a transformed `hyperdesign` object, with pre-processors set as attribute named `preproc`
 #' @export
+#' @rdname init_transform
 init_transform.hyperdesign <- function(x, preproc) {
   ## pre-processors
   proclist <- lapply(seq_along(x), function(i) {
@@ -108,6 +110,7 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' hd <- hyperdesign(list(d1,d2,d3))
 #' folds <- fold_over(hd, run)
 #' @export
+#' @rdname fold_over
 fold_over.hyperdesign <- function(x, ...) {
 
   splits <- lapply(seq_along(x), function(i) {

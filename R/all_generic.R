@@ -106,7 +106,16 @@ design <- function(x, ...) UseMethod("design")
 #' @export
 split_indices <- function(x, ...) UseMethod("split_indices")
 
+
 #' @importFrom multivarious init_transform
 #' @export
+#' @rdname init_transform
 multivarious::init_transform
+
+
+#' @importFrom multivarious block_indices
+#' @export
+#' @rdname block_indices
+multivarious::block_indices
+
 

@@ -12,8 +12,13 @@ LazyData: true
 Imports: 
     chk,
     tibble,
-    dplyr
+    dplyr,
+    multivarious
 RoxygenNote: 7.1.0
 Suggests: 
     covr,
     testthat
+Remotes:
+    bbuchsbaum/multivarious
+
+
