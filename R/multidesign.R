@@ -32,7 +32,7 @@ split.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
   ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
   xl <- ret$data %>% purrr::map(~x$x[.x$.index,,drop=FALSE])
-  ret <- unlist(lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]])), recursive=FALSE)
+  ret <- lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]]))
 }
 
 #' @export
