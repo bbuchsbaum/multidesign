@@ -36,6 +36,7 @@ split.multidesign <- function(x, ..., collapse=FALSE) {
 }
 
 #' @export
+#' @importFrom tidyr unite
 split_indices.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
   ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
