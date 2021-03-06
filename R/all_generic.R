@@ -59,6 +59,28 @@ hyperdesign <- function(x, ...) UseMethod("hyperdesign")
 multiframe <- function(x, y, ...) UseMethod("multiframe")
 
 
+
+
+#' create an multiblock object
+#'
+#' construct a new multiblock matrix consisting of a set of stacked submatrices sharing a row- or column dimension.
+#'
+#' @param x the matrix data
+#' @param design design matrix for the shared dimension
+#' @param ... extra args
+#' @export
+#' @examples
+#'
+#' X <- replicate(3, matrix(rnorm(20*100), 20, 100), simplify=FALSE)
+#' mb <- multiblock(X)
+#' @export
+multiblock <- function(x, design, ...) UseMethod("multiblock")
+
+
+
+
+
+
 #' summarize data over grouping variable(s)
 #'
 #' apply a mutlivariate columnwise summary function (e.g. `colMeans`) to subsets

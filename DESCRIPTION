@@ -14,11 +14,9 @@ Imports:
     tibble,
     dplyr,
     multivarious
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.1
 Suggests: 
     covr,
     testthat
 Remotes:
     bbuchsbaum/multivarious
-
-
