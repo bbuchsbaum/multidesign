@@ -76,8 +76,15 @@ multiframe <- function(x, y, ...) UseMethod("multiframe")
 multiblock <- function(x, design, ...) UseMethod("multiblock")
 
 
+#' test whether `multiblock` object is column stacked
+#' @param x the object
+#' @export
+is_cstacked <- function(x) UseMethod("is_cstacked")
 
-
+#' test whether `multiblock` object is row stacked
+#' @param x the object
+#' @export
+is_rstacked <- function(x) UseMethod("is_rstacked")
 
 
 #' summarize data over grouping variable(s)

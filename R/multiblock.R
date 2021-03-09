@@ -52,6 +52,16 @@ t.multiblock_list <- function(x) {
   multiblock(out)
 }
 
+#' @export
+is_cstacked.multiblock_list <- function(x) {
+  inherits(x, "multiblock_c")
+}
+
+#' @export
+is_rstacked.multiblock_list <- function(x) {
+  inherits(x, "multiblock_r")
+}
+
 
 #' @export
 print.multiblock_list <- function(x) {
