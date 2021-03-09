@@ -70,8 +70,7 @@ multiframe <- function(x, y, ...) UseMethod("multiframe")
 #' @param ... extra args
 #' @export
 #' @examples
-#'
-#' X <- replicate(3, matrix(rnorm(20*100), 20, 100), simplify=FALSE)
+#' X <- lapply(c(10,20,30), function(i) matrix(rnorm(i*100), i, 100))
 #' mb <- multiblock(X)
 #' @export
 multiblock <- function(x, design, ...) UseMethod("multiblock")

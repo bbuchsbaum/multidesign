@@ -34,6 +34,8 @@ multiblock.list <- function(x, design=NULL) {
               ind=bind,
               orient="rstacked",
               class=c("multiblock_r", "multiblock_list", "multiblock", "list"))
+  } else {
+    stop("all matrices must share either row or column dimension")
   }
 }
 
@@ -42,6 +44,12 @@ block_indices.multiblock_list <- function(x, i) {
   chk::chk_range(i, c(1,length(x)))
   ind <- attr(x, "ind")
   seq(ind[i, 1], ind[i,2])
+}
+
+#' @export
+t.multiblock_list <- function(x) {
+  out <- lapply(x, t)
+  multiblock(out)
 }
 
 

@@ -17,7 +17,6 @@ multiblock(x, design, ...)
 construct a new multiblock matrix consisting of a set of stacked submatrices sharing a row- or column dimension.
 }
 \examples{
-
-X <- replicate(3, matrix(rnorm(20*100), 20, 100), simplify=FALSE)
+X <- lapply(c(10,20,30), function(i) matrix(rnorm(i*100), i, 100))
 mb <- multiblock(X)
 }
