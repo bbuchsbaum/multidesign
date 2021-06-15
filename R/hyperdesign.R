@@ -110,6 +110,7 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' hd <- hyperdesign(list(d1,d2,d3))
 #' folds <- fold_over(hd, run)
 #' @export
+#' @importFrom deflist deflist
 #' @rdname fold_over
 fold_over.hyperdesign <- function(x, ...) {
 
@@ -124,13 +125,13 @@ fold_over.hyperdesign <- function(x, ...) {
 
   tlen <- sum(unlist(lens))
 
-
   extract <- function(i) {
     block <- foldframe[[".block"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
     testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,])
 
+    ## all blocks except
     traindat <- hyperdesign(lapply(seq_along(x), function(j) {
       if (j == block) {
         if (length(ind) == nrow(x[[j]]$x)) {
@@ -139,7 +140,7 @@ fold_over.hyperdesign <- function(x, ...) {
         }
         multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,])
       } else{
-        x[[block]]
+        x[[j]]
       }
     }))
 
