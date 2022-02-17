@@ -11,7 +11,7 @@ observation <- function(x, i) UseMethod("observation")
 
 #' create an multidesign object
 #'
-#' construct a new multivariate design object linking vector-valued observations and arbitrary design variables
+#' construct a new multivariate design object linking vector-valued observations and design variables
 #'
 #' @param x the multivariate data (a matrix, a list, or other data container)
 #' @param y a design matrix with same number of rows/elements as x
@@ -73,7 +73,7 @@ multiframe <- function(x, y, ...) UseMethod("multiframe")
 #' X <- lapply(c(10,20,30), function(i) matrix(rnorm(i*100), i, 100))
 #' mb <- multiblock(X)
 #' @export
-multiblock <- function(x, design, ...) UseMethod("multiblock")
+multiblock <- function(x, ...) UseMethod("multiblock")
 
 
 #' test whether `multiblock` object is column stacked

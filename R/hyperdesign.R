@@ -111,6 +111,7 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' folds <- fold_over(hd, run)
 #' @export
 #' @importFrom deflist deflist
+#' @importFrom dplyr as_tibble
 #' @rdname fold_over
 fold_over.hyperdesign <- function(x, ...) {
 
@@ -118,6 +119,8 @@ fold_over.hyperdesign <- function(x, ...) {
     d <- x[[i]]
     split_indices(d, ...) %>% mutate(.block=i)
   })
+
+
 
   foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())
 
@@ -149,13 +152,21 @@ fold_over.hyperdesign <- function(x, ...) {
 
   }
 
-  deflist(extract, len=tlen)
+
+  ret <- deflist(extract, len=tlen)
+  names(ret) <- paste0("fold_", 1:length(ret))
+  class(ret) <- c("foldlist", class(ret))
+  attr(ret, "foldframe") <- foldframe
+  ret
+
   ## split over the variable, get global indices
   ## verify that variable exists in each design
   ## verify that all blocks have a minimum observation size
   ## create a `deflist` ,wher each element has an "analysis" and assessment hyperdesign
 
 }
+
+
 
 #' @export
 xdata.hyperdesign <- function(x, block) {

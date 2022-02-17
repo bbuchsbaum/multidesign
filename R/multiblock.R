@@ -14,7 +14,7 @@ block_index_mat2 <- function(x, byrow=FALSE) {
 }
 
 #' @export
-multiblock.list <- function(x, design=NULL) {
+multiblock.list <- function(x) {
   sapply(x, function(m) chk::chkor(chk::chk_s3_class(m, "matrix"), chk::chk_s4_class(m, "Matrix")))
 
   nr <- sapply(x, nrow)
