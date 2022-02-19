@@ -23,8 +23,12 @@ multidesign.matrix <- function(x, y) {
 #' @export
 subset.multidesign <- function(x, fexpr) {
   des2 <- filter(x$design, !!rlang::enquo(fexpr))
-  ind <- des2$.index
-  multidesign(x$x[ind,], des2)
+  if (nrow(des2) == 0) {
+    NULL
+  } else {
+    ind <- des2$.index
+    multidesign(x$x[ind,], des2)
+  }
 }
 
 #' @export

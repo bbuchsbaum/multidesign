@@ -13,10 +13,14 @@ block_index_mat <- function(x, byrow=FALSE) {
   m
 }
 
-#' @export
+
+#' construct a `hyperdesign` object
 #'
+#' A collection of multivariate datasets that share a set of common design variables
+#'
+#' @param x a list of `multidesign` instances
 #' @param block_names the names of each block
-#'
+#' @export
 #' @examples
 #' d1 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=1, run=rep(1:5, 2)))
 #' d2 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=2, run=rep(1:5, 2)))
@@ -33,11 +37,13 @@ hyperdesign <- function(x, block_names=NULL) {
     chk::chk_true(length(block_names) == length(x))
     names(x) <- block_names
   } else if (is.null(names(x))) {
-    names(x) <- paste0("block_", 1:length(x))
+    block_names <- paste0("block_", 1:length(x))
+    names(x) <- block_names
   }
 
   hdes <- lapply(1:length(x), function(i) {
-    tibble(block=i, nr=nrow(x[[i]]$x), nxvar=ncol(x[[i]]$x), nyvar=ncol(x[[i]]$design),
+    tibble(block=i, block_name=block_names[i],
+           nr=nrow(x[[i]]$x), nxvar=ncol(x[[i]]$x), nyvar=ncol(x[[i]]$design),
            row_start=bind_row[i,1], row_end=bind_row[i,2],
            col_start=bind_col[i,1], col_end=bind_col[i,2])
   }) %>% bind_rows()
@@ -174,7 +180,7 @@ xdata.hyperdesign <- function(x, block) {
     lapply(x, xdata)
   } else {
     chk::vld_number(block)
-    chk::chk_range(block, 1, length(x))
+    chk::chk_range(block, c(1, length(x)))
     xdata(x[[block]])
   }
 }
@@ -185,9 +191,24 @@ design.hyperdesign <- function(x, block) {
     lapply(x, design)
   } else {
     chk::vld_number(block)
-    chk::chk_range(block, 1, length(x))
+    chk::chk_range(block, c(1, length(x)))
     design(x[[block]])
   }
+}
+
+#' @export
+subset.hyperdesign <- function(x, fexpr) {
+  out <- lapply(hd, function(d) {
+    subset(d, !!rlang::enquo(fexpr))
+  })
+
+  rem <- unlist(purrr::map(out, is.null))
+  if (sum(rem) == length(hd)) {
+    stop("subset expression does not match any rows in hyperdesign `x`")
+  }
+
+  onam <- names(x)[!rem]
+  hyperdesign(out[!rem], onam)
 }
 
 
