@@ -9,6 +9,8 @@ hyperdesign(x, block_names = NULL)
 hyperdesign(x, block_names = NULL)
 }
 \arguments{
+\item{x}{a list of `multidesign` instances}
+
 \item{block_names}{the names of each block}
 
 \item{...}{extra args}
@@ -17,6 +19,9 @@ hyperdesign(x, block_names = NULL)
 construct a new `hyperdesign` object. A `hyperdesign` encapusulates a collection of `multidesign` objeects.
 It is used to model multigroup, muliblock, or multiview datasets, here each block/group/view is
 associated with a matrix-variate response and an arbitrary design.
+
+A collection of multivariate datasets (`multidesign` instances) that share a set of common design variables.
+The class can be used to capture multiblock data, where one wants to model multiple related matrices.
 }
 \examples{
 d1 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=1, run=rep(1:5, 2)))

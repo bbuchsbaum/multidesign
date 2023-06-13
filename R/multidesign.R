@@ -1,3 +1,4 @@
+
 #' @importFrom dplyr mutate rowwise n
 #' @export
 #' @examples
@@ -18,6 +19,18 @@ multidesign.matrix <- function(x, y) {
     design=tibble::as_tibble(des)
   ),
   class="multidesign")
+}
+
+reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(x$x, ncomp=nc,...)) {
+  projector <- rfun(x)
+  chk::chk_s3_class(projector, "projector")
+  rx <- multivarious::project(projector, x$x)
+  structure(list(
+    x=rx,
+    design=x$design,
+    projector=projector
+  ),
+  class=c("reduced_multidesign", "multidesign"))
 }
 
 #' @export
@@ -71,9 +84,21 @@ design.multidesign <- function(x) x$y
 
 #' @export
 print.multidesign <- function(x) {
-  cat("a multidesign object. \n")
+  cat("A multidesign object. \n")
   cat(nrow(x$design), "rows", "\n")
-  cat(ncol(x$des), "design variables", "and", nrow(x$x), "response variables", "\n")
+  cat(ncol(x$des), "design variables", "\n")
   cat("design variables: ", "\n")
   print(x$design, n=5)
+}
+
+#' @export
+print.reduced_multidesign <- function(x) {
+  cat("A (reduced) multidesign object. \n")
+  cat(paste("original input channels: ", multivarious::shape(x$projector)[1], "\n"))
+  cat(paste("reduced input channels: ", multivarious::shape(x$projector)[2], "\n"))
+  cat(nrow(x$design), "rows", "\n")
+  cat(ncol(x$design), "design variables")
+  cat("design variables: ", "\n")
+  print(x$design, n=5)
+
 }

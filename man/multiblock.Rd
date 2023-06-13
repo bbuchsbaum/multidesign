@@ -4,14 +4,14 @@
 \alias{multiblock}
 \title{create an multiblock object}
 \usage{
-multiblock(x, design, ...)
+multiblock(x, ...)
 }
 \arguments{
 \item{x}{the matrix data}
 
-\item{design}{design matrix for the shared dimension}
-
 \item{...}{extra args}
+
+\item{design}{design matrix for the shared dimension}
 }
 \description{
 construct a new multiblock matrix consisting of a set of stacked submatrices sharing a row- or column dimension.

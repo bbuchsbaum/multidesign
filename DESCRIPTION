@@ -14,7 +14,7 @@ Imports:
     tibble,
     dplyr,
     multivarious
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.3
 Suggests: 
     covr,
     testthat

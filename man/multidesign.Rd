@@ -17,7 +17,7 @@ multidesign(x, y, ...)
 \item{...}{extra args}
 }
 \description{
-construct a new multivariate design object linking vector-valued observations and arbitrary design variables
+construct a new multivariate design object linking vector-valued observations and design variables
 }
 \examples{
 

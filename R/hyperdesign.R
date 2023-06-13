@@ -14,9 +14,68 @@ block_index_mat <- function(x, byrow=FALSE) {
 }
 
 
+
+#' Function to create a hyperdesign from a data.frame (or tibble)
+#'
+#' This function takes a data.frame, the names of the design variables, the names of the X variables,
+#' and the name of the splitting variable, and returns a hyperdesign object.
+#'
+#' @importFrom tidyr select everything
+#' @importFrom dplyr arrange group_by nest_by
+#' @importFrom purrr map
+#'
+#' @param data A data.frame.
+#' @param design_vars a character vector of design variables to extract
+#' @param x_vars a character vector of X design variables to extract
+#' @param split_var the splitting variable.
+#'
+#' @return A hyperdesign object.
+#'
+#' @export
+#'
+#' @examples
+#' # Create a sample tibble
+#' sample_tibble <- tibble(
+#'   felab = rep(1:2, each = 3),
+#'   attention = rep(c("DA", "FA"), times = 3),
+#'   basis = rep(c("basis01", "basis02", "basis03"), times = 2),
+#'   subject = rep(1001:1002, each = 3),
+#'   `1` = rnorm(6),
+#'   `2` = rnorm(6),
+#'   `3` = rnorm(6)
+#' )
+#'
+#' # Apply the function
+#' hd <- df_to_hyperdesign(sample_tibble, c("felab", "attention", "basis"), setdiff(colnames(sample_tibble), c("felab", "attention", "basis", "subject")), "subject")
+df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
+  # Arrange the data by the splitting variable
+  data <- data %>% arrange(!!rlang::sym(split_var))
+
+  # Create the nested dataframes
+  nested_data <- data %>%
+    group_by(!!rlang::sym(split_var)) %>%
+    nest_by()
+
+  # Convert each nested dataframe into a multidesign object
+  multidesigns <- map(nested_data$data, function(df) {
+    # Select X and design variables
+    X <- select(df, all_of(x_vars))
+    design <- select(df, all_of(design_vars))
+
+    # Create multidesign object
+    multidesign(as.matrix(X), design)
+  })
+
+  # Convert the list of multidesign objects into a hyperdesign
+  hyperdesign(multidesigns, as.character(nested_data[[1]]))
+}
+
+
+
 #' construct a `hyperdesign` object
 #'
-#' A collection of multivariate datasets that share a set of common design variables
+#' A collection of multivariate datasets (`multidesign` instances) that share a set of common design variables.
+#' The class can be used to capture multiblock data, where one wants to model multiple related matrices.
 #'
 #' @param x a list of `multidesign` instances
 #' @param block_names the names of each block
