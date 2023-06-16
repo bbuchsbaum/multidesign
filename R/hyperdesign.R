@@ -20,7 +20,7 @@ block_index_mat <- function(x, byrow=FALSE) {
 #' This function takes a data.frame, the names of the design variables, the names of the X variables,
 #' and the name of the splitting variable, and returns a hyperdesign object.
 #'
-#' @importFrom tidyr select everything
+#' @importFrom dplyr select everything
 #' @importFrom dplyr arrange group_by nest_by
 #' @importFrom purrr map
 #'
@@ -177,6 +177,7 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' @export
 #' @importFrom deflist deflist
 #' @importFrom dplyr as_tibble
+#' @importFrom dplyr bind_rows
 #' @rdname fold_over
 fold_over.hyperdesign <- function(x, ...) {
 
@@ -184,7 +185,6 @@ fold_over.hyperdesign <- function(x, ...) {
     d <- x[[i]]
     split_indices(d, ...) %>% mutate(.block=i)
   })
-
 
 
   foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())

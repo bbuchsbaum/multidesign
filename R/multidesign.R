@@ -4,7 +4,7 @@
 #' @examples
 #'
 #' X <- matrix(rnorm(20*100), 20, 100)
-#' Y <- tibble(condition=rep(letters[1:5], 4))
+#' Y <- tibble(condition=rep(letters[1:5], 4), subject=rep(1:4, each=5))
 #'
 #' mds <- multidesign(X,Y)
 #' @rdname multidesign
@@ -81,6 +81,36 @@ xdata.multidesign <- function(x) x$x
 
 #' @export
 design.multidesign <- function(x) x$y
+
+
+#' @export
+#' @importFrom deflist deflist
+fold_over.multidesign <- function(x, ...) {
+  args <- rlang::enquos(...)
+  splits <- split_indices(x,!!!args)
+  foldframe <- splits %>% mutate(.fold=1:n())
+
+  extract <- function(i) {
+    #browser()
+    block <- foldframe[[".fold"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    testdat <- multidesign(xdata(x)[ind,], x$design[ind,])
+    ## all blocks except
+    traindat <- multidesign(xdata(x)[-ind,], x$design[-ind,])
+    list(analysis=traindat,
+         assessment=testdat)
+
+  }
+
+  tlen <- nrow(foldframe)
+  ret <- deflist(extract, len=tlen)
+  names(ret) <- paste0("fold_", 1:length(ret))
+  class(ret) <- c("foldlist", class(ret))
+  attr(ret, "foldframe") <- foldframe
+  ret
+}
+
 
 #' @export
 print.multidesign <- function(x) {

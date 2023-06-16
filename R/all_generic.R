@@ -33,7 +33,7 @@ multidesign <- function(x, y, ...) UseMethod("multidesign")
 #' It is used to model multigroup, muliblock, or multiview datasets, here each block/group/view is
 #' associated with a matrix-variate response and an arbitrary design.
 #'
-#' @param x
+#' @param x the input data
 #' @param ... extra args
 #' @export
 hyperdesign <- function(x, ...) UseMethod("hyperdesign")
