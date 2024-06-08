@@ -185,93 +185,219 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' @importFrom dplyr as_tibble
 #' @importFrom dplyr bind_rows
 #' @rdname fold_over
-fold_over.hyperdesign <- function(x, ..., test_condition = list()) {
+fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusion_condition = list()) {
 
-  # Validate test_condition if it is non-empty
-  if (length(test_condition) > 0) {
-    validate_test_condition <- function(x, test_condition) {
+  # Validate inclusion_condition if it is non-empty
+  if (length(inclusion_condition) > 0) {
+    validate_inclusion_condition <- function(x, inclusion_condition) {
       all_design <- do.call(rbind, lapply(x, function(block) block$design))
-      for (factor_name in names(test_condition)) {
+      for (factor_name in names(inclusion_condition)) {
         if (!factor_name %in% colnames(all_design)) {
           stop(paste("Factor", factor_name, "not found in the design."))
         }
-        if (!any(test_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
-          stop(paste("Level", test_condition[[factor_name]], "not found for factor", factor_name))
+        if (!any(inclusion_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+          stop(paste("Level", inclusion_condition[[factor_name]], "not found for factor", factor_name))
         }
       }
     }
+    validate_inclusion_condition(x, inclusion_condition)
+  }
 
-    validate_test_condition(x, test_condition)
+  # Validate exclusion_condition if it is non-empty
+  if (length(exclusion_condition) > 0) {
+    validate_exclusion_condition <- function(x, exclusion_condition) {
+      all_design <- do.call(rbind, lapply(x, function(block) block$design))
+      for (factor_name in names(exclusion_condition)) {
+        if (!factor_name %in% colnames(all_design)) {
+          stop(paste("Factor", factor_name, "not found in the design."))
+        }
+        if (!any(exclusion_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+          stop(paste("Level", exclusion_condition[[factor_name]], "not found for factor", factor_name))
+        }
+      }
+    }
+    validate_exclusion_condition(x, exclusion_condition)
   }
 
   splits <- lapply(seq_along(x), function(i) {
     d <- x[[i]]
-    split_indices(d, ...) %>% mutate(.block=i)
+    split_indices(d, ...) %>% mutate(.block = i)
   })
 
-  foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())
+  foldframe <- splits %>% bind_rows() %>% mutate(.fold = 1:n())
   lens <- purrr::map(splits, function(x) nrow(x))
   tlen <- sum(unlist(lens))
-
-  extract <- function(i) {
-    block <- foldframe[[".block"]][i]
-    ind <- unlist(foldframe[["indices"]][[i]])
-
-    testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,], x[[block]]$column_design)
-
-    traindat <- hyperdesign(lapply(seq_along(x), function(j) {
-      if (j == block) {
-        if (length(ind) == nrow(x[[j]]$x)) {
-          stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.\n                     No training data available for current fold! Check distribution of splitting variables over blocks."))
-        }
-        multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,], x[[block]]$column_design)
-      } else {
-        x[[j]]
-      }
-    }))
-
-    # Retrieve the unique values of the held-out split
-    held_out_values <- x[[block]]$design[ind, , drop = FALSE] %>%
-      distinct() %>%
-      slice(1) %>%
-      as.list()
-
-    # Retrieve the block indices for the test set
-    block_indices <- block_index_mat(x, byrow=TRUE)[block, , drop = FALSE]
-
-    list(analysis = traindat,
-         assessment = testdat,
-         held_out = held_out_values,
-         block_indices = block_indices)
-  }
 
   condition_met <- function(i) {
     block <- foldframe[[".block"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
     # Check if the test data meets the specified condition
-    test_design <- x[[block]]$design[ind,]
-    for (factor_name in names(test_condition)) {
-      if (!any(test_design[[factor_name]] %in% test_condition[[factor_name]])) {
-        return(FALSE)
+    test_design <- x[[block]]$design[ind, ]
+
+    # Apply inclusion_condition
+    if (length(inclusion_condition) > 0) {
+      for (factor_name in names(inclusion_condition)) {
+        test_design <- test_design[test_design[[factor_name]] %in% inclusion_condition[[factor_name]], , drop = FALSE]
       }
     }
-    return(TRUE)
+
+    # Apply exclusion_condition
+    if (length(exclusion_condition) > 0) {
+      for (factor_name in names(exclusion_condition)) {
+        test_design <- test_design[!test_design[[factor_name]] %in% exclusion_condition[[factor_name]], , drop = FALSE]
+      }
+    }
+
+    # Check if there are any remaining rows after filtering
+    nrow(test_design) > 0
   }
 
   indices <- which(sapply(seq_len(tlen), condition_met))
-  ret <- deflist(function(i) extract(indices[i]), len=length(indices))
+
+  if (length(indices) == 0) {
+    stop("No valid folds created. Check inclusion and exclusion conditions.")
+  }
+
+  extract <- function(i) {
+    block <- foldframe[[".block"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    test_design <- x[[block]]$design[ind, , drop = FALSE]
+
+    # Apply inclusion_condition
+    if (length(inclusion_condition) > 0) {
+      for (factor_name in names(inclusion_condition)) {
+        test_design <- test_design[test_design[[factor_name]] %in% inclusion_condition[[factor_name]], , drop = FALSE]
+      }
+    }
+
+    # Apply exclusion_condition
+    if (length(exclusion_condition) > 0) {
+      for (factor_name in names(exclusion_condition)) {
+        test_design <- test_design[!test_design[[factor_name]] %in% exclusion_condition[[factor_name]], , drop = FALSE]
+      }
+    }
+
+    test_indices <- as.numeric(rownames(test_design))
+    testdat <- multidesign(x[[block]]$x[test_indices, ], test_design, x[[block]]$column_design)
+
+    traindat <- hyperdesign(lapply(seq_along(x), function(j) {
+      if (j == block) {
+        if (length(test_indices) == nrow(x[[j]]$x)) {
+          stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.\nNo training data available for current fold! Check distribution of splitting variables over blocks."))
+        }
+        multidesign(x[[block]]$x[-test_indices, ], x[[block]]$design[-test_indices, ], x[[block]]$column_design)
+      } else {
+        x[[j]]
+      }
+    }))
+
+    # Retrieve the unique values of the held-out split
+    held_out_values <- x[[block]]$design[test_indices, , drop = FALSE] %>%
+      distinct() %>%
+      slice(1) %>%
+      as.list()
+
+    list(analysis = traindat,
+         assessment = testdat,
+         held_out = held_out_values)
+  }
+
+  ret <- deflist(function(i) extract(indices[i]), len = length(indices))
 
   names(ret) <- paste0("fold_", seq_along(ret))
   class(ret) <- c("foldlist", class(ret))
   attr(ret, "foldframe") <- foldframe
   ret
-
-  ## split over the variable, get global indices
-  ## verify that variable exists in each design
-  ## verify that all blocks have a minimum observation size
-  ## create a `deflist` ,wher each element has an "analysis" and assessment hyperdesign
 }
+# fold_over.hyperdesign <- function(x, ..., test_condition = list()) {
+#
+#   # Validate test_condition if it is non-empty
+#   if (length(test_condition) > 0) {
+#     validate_test_condition <- function(x, test_condition) {
+#       all_design <- do.call(rbind, lapply(x, function(block) block$design))
+#       for (factor_name in names(test_condition)) {
+#         if (!factor_name %in% colnames(all_design)) {
+#           stop(paste("Factor", factor_name, "not found in the design."))
+#         }
+#         if (!any(test_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+#           stop(paste("Level", test_condition[[factor_name]], "not found for factor", factor_name))
+#         }
+#       }
+#     }
+#
+#     validate_test_condition(x, test_condition)
+#   }
+#
+#   splits <- lapply(seq_along(x), function(i) {
+#     d <- x[[i]]
+#     split_indices(d, ...) %>% mutate(.block=i)
+#   })
+#
+#   foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())
+#   lens <- purrr::map(splits, function(x) nrow(x))
+#   tlen <- sum(unlist(lens))
+#
+#   extract <- function(i) {
+#     block <- foldframe[[".block"]][i]
+#     ind <- unlist(foldframe[["indices"]][[i]])
+#
+#     testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,], x[[block]]$column_design)
+#
+#     traindat <- hyperdesign(lapply(seq_along(x), function(j) {
+#       if (j == block) {
+#         if (length(ind) == nrow(x[[j]]$x)) {
+#           stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.\n                     No training data available for current fold! Check distribution of splitting variables over blocks."))
+#         }
+#         multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,], x[[block]]$column_design)
+#       } else {
+#         x[[j]]
+#       }
+#     }))
+#
+#     # Retrieve the unique values of the held-out split
+#     held_out_values <- x[[block]]$design[ind, , drop = FALSE] %>%
+#       distinct() %>%
+#       slice(1) %>%
+#       as.list()
+#
+#     # Retrieve the block indices for the test set
+#     block_indices <- block_index_mat(x, byrow=TRUE)[block, , drop = FALSE]
+#
+#     list(analysis = traindat,
+#          assessment = testdat,
+#          held_out = held_out_values,
+#          block_indices = block_indices)
+#   }
+#
+#   condition_met <- function(i) {
+#     block <- foldframe[[".block"]][i]
+#     ind <- unlist(foldframe[["indices"]][[i]])
+#
+#     # Check if the test data meets the specified condition
+#     test_design <- x[[block]]$design[ind,]
+#     for (factor_name in names(test_condition)) {
+#       if (!any(test_design[[factor_name]] %in% test_condition[[factor_name]])) {
+#         return(FALSE)
+#       }
+#     }
+#     return(TRUE)
+#   }
+#
+#   indices <- which(sapply(seq_len(tlen), condition_met))
+#   ret <- deflist(function(i) extract(indices[i]), len=length(indices))
+#
+#   names(ret) <- paste0("fold_", seq_along(ret))
+#   class(ret) <- c("foldlist", class(ret))
+#   attr(ret, "foldframe") <- foldframe
+#   ret
+#
+#   ## split over the variable, get global indices
+#   ## verify that variable exists in each design
+#   ## verify that all blocks have a minimum observation size
+#   ## create a `deflist` ,wher each element has an "analysis" and assessment hyperdesign
+# }
 
 # fold_over.hyperdesign <- function(x, ...) {
 #
