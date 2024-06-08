@@ -72,7 +72,7 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 
 
 
-#' construct a `hyperdesign` object
+#' Construct a `hyperdesign` object
 #'
 #' A collection of multivariate datasets (`multidesign` instances) that share a set of common design variables.
 #' The class can be used to capture multiblock data, where one wants to model multiple related matrices.
@@ -179,47 +179,90 @@ init_transform.hyperdesign <- function(x, preproc) {
 #' @importFrom dplyr as_tibble
 #' @importFrom dplyr bind_rows
 #' @rdname fold_over
-fold_over.hyperdesign <- function(x, ...) {
+#' folds <- fold_over(hd, run, test_condition = list(task = "a"))
+#' @export
+#' @importFrom deflist deflist
+#' @importFrom dplyr as_tibble
+#' @importFrom dplyr bind_rows
+#' @rdname fold_over
+fold_over.hyperdesign <- function(x, ..., test_condition = list()) {
+
+  # Validate test_condition if it is non-empty
+  if (length(test_condition) > 0) {
+    validate_test_condition <- function(x, test_condition) {
+      all_design <- do.call(rbind, lapply(x, function(block) block$design))
+      for (factor_name in names(test_condition)) {
+        if (!factor_name %in% colnames(all_design)) {
+          stop(paste("Factor", factor_name, "not found in the design."))
+        }
+        if (!any(test_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+          stop(paste("Level", test_condition[[factor_name]], "not found for factor", factor_name))
+        }
+      }
+    }
+
+    validate_test_condition(x, test_condition)
+  }
 
   splits <- lapply(seq_along(x), function(i) {
     d <- x[[i]]
     split_indices(d, ...) %>% mutate(.block=i)
   })
 
-
   foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())
-
   lens <- purrr::map(splits, function(x) nrow(x))
-
   tlen <- sum(unlist(lens))
 
   extract <- function(i) {
     block <- foldframe[[".block"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
-    testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,])
+    testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,], x[[block]]$column_design)
 
-    ## all blocks except
     traindat <- hyperdesign(lapply(seq_along(x), function(j) {
       if (j == block) {
         if (length(ind) == nrow(x[[j]]$x)) {
-          stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.
-                     No training data available for current fold! Check distribution of splitting variables over blocks."))
+          stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.\n                     No training data available for current fold! Check distribution of splitting variables over blocks."))
         }
-        multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,])
-      } else{
+        multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,], x[[block]]$column_design)
+      } else {
         x[[j]]
       }
     }))
 
-    list(analysis=traindat,
-         assessment=testdat)
+    # Retrieve the unique values of the held-out split
+    held_out_values <- x[[block]]$design[ind, , drop = FALSE] %>%
+      distinct() %>%
+      slice(1) %>%
+      as.list()
 
+    # Retrieve the block indices for the test set
+    block_indices <- block_index_mat(x, byrow=TRUE)[block, , drop = FALSE]
+
+    list(analysis = traindat,
+         assessment = testdat,
+         held_out = held_out_values,
+         block_indices = block_indices)
   }
 
+  condition_met <- function(i) {
+    block <- foldframe[[".block"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
 
-  ret <- deflist(extract, len=tlen)
-  names(ret) <- paste0("fold_", 1:length(ret))
+    # Check if the test data meets the specified condition
+    test_design <- x[[block]]$design[ind,]
+    for (factor_name in names(test_condition)) {
+      if (!any(test_design[[factor_name]] %in% test_condition[[factor_name]])) {
+        return(FALSE)
+      }
+    }
+    return(TRUE)
+  }
+
+  indices <- which(sapply(seq_len(tlen), condition_met))
+  ret <- deflist(function(i) extract(indices[i]), len=length(indices))
+
+  names(ret) <- paste0("fold_", seq_along(ret))
   class(ret) <- c("foldlist", class(ret))
   attr(ret, "foldframe") <- foldframe
   ret
@@ -228,8 +271,59 @@ fold_over.hyperdesign <- function(x, ...) {
   ## verify that variable exists in each design
   ## verify that all blocks have a minimum observation size
   ## create a `deflist` ,wher each element has an "analysis" and assessment hyperdesign
-
 }
+
+# fold_over.hyperdesign <- function(x, ...) {
+#
+#   splits <- lapply(seq_along(x), function(i) {
+#     d <- x[[i]]
+#     split_indices(d, ...) %>% mutate(.block=i)
+#   })
+#
+#
+#   foldframe <- splits %>% bind_rows() %>% mutate(.fold=1:n())
+#
+#   lens <- purrr::map(splits, function(x) nrow(x))
+#
+#   tlen <- sum(unlist(lens))
+#
+#   extract <- function(i) {
+#     block <- foldframe[[".block"]][i]
+#     ind <- unlist(foldframe[["indices"]][[i]])
+#
+#     testdat <- multidesign(x[[block]]$x[ind,], x[[block]]$design[ind,], x[[block]]$column_design)
+#
+#     ## all blocks except
+#     traindat <- hyperdesign(lapply(seq_along(x), function(j) {
+#       if (j == block) {
+#         if (length(ind) == nrow(x[[j]]$x)) {
+#           stop(paste("number of test data rows in block ", j, " is equal to number of rows in block.
+#                      No training data available for current fold! Check distribution of splitting variables over blocks."))
+#         }
+#         multidesign(x[[block]]$x[-ind,], x[[block]]$design[-ind,], x[[block]]$column_design)
+#       } else{
+#         x[[j]]
+#       }
+#     }))
+#
+#     list(analysis=traindat,
+#          assessment=testdat)
+#
+#   }
+#
+#
+#   ret <- deflist(extract, len=tlen)
+#   names(ret) <- paste0("fold_", 1:length(ret))
+#   class(ret) <- c("foldlist", class(ret))
+#   attr(ret, "foldframe") <- foldframe
+#   ret
+#
+#   ## split over the variable, get global indices
+#   ## verify that variable exists in each design
+#   ## verify that all blocks have a minimum observation size
+#   ## create a `deflist` ,wher each element has an "analysis" and assessment hyperdesign
+#
+# }
 
 
 
@@ -252,6 +346,17 @@ design.hyperdesign <- function(x, block) {
     chk::vld_number(block)
     chk::chk_range(block, c(1, length(x)))
     design(x[[block]])
+  }
+}
+
+#' @export
+column_design.hyperdesign <- function(x, block) {
+  if (missing(block)) {
+    lapply(x, design)
+  } else {
+    chk::vld_number(block)
+    chk::chk_range(block, c(1, length(x)))
+    column_design(x[[block]])
   }
 }
 

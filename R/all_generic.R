@@ -127,6 +127,12 @@ xdata <- function(x, ...) UseMethod("xdata")
 design <- function(x, ...) UseMethod("design")
 
 
+#' get column design
+#'
+#' @export
+column_design <- function(x, ...) UseMethod("column_design")
+
+
 #' split indices
 #'
 #' extract the row indices of a table, split by one or more variables
