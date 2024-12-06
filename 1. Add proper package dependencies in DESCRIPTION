@@ -1,0 +1,9 @@
+Imports:
+    dplyr,
+    tidyr,
+    crayon,
+    chk,
+    rlang,
+    multivarious,
+    tibble,
+    purrr
