@@ -22,7 +22,12 @@ Imports:
     crayon,
     deflist,
     purrr,
-    tidyr
+    tidyr,
+    magrittr,
+    recipes,
+    stats,
+    utils,
+    rlang
 RoxygenNote: 7.3.2
 Suggests: 
     covr,
