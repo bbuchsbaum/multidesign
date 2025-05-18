@@ -1,0 +1,101 @@
+---
+title: "Class Overview"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Class Overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+# Introduction
+
+This vignette provides a high level overview of the S3 classes implemented in
+**multidesign**.  Each class encapsulates a different way of representing
+multivariate data together with its associated experimental design.  The goal is
+to make it easy to switch between single data matrices and more complex
+multi–block structures while keeping a consistent interface.
+
+# `multidesign`
+
+A `multidesign` object links a multivariate matrix `x` with a data frame of
+design variables.  Every row of `x` corresponds to a row in the design.  This is
+useful for standard single–block analyses where the observations share a common
+set of descriptors.
+
+```{r}
+X <- matrix(rnorm(20 * 5), 20, 5)
+Y <- tibble(condition = rep(letters[1:4], 5))
+md <- multidesign(X, Y)
+md
+```
+
+# `reduced_multidesign`
+
+The `reduced_multidesign` class extends `multidesign` and stores the result of a
+projection or dimension–reduction step.  It contains the reduced data and the
+projector used to obtain it.
+
+```{r}
+rd <- reduce(md, nc = 2)
+rd
+```
+
+# `hyperdesign`
+
+A `hyperdesign` is a collection of `multidesign` objects that share one or more
+common design variables.  It is suited for multiblock or multiview settings
+where each block represents a separate matrix but the blocks are related through
+shared variables.
+
+```{r}
+hd <- hyperdesign(list(md, md))
+hd
+```
+
+# `multiblock`
+
+The `multiblock` class represents a single matrix composed of stacked sub
+matrices that share either a row or column dimension.  It is a lower level
+format than `hyperdesign` and is mainly used when the blocks form one large
+matrix.
+
+```{r}
+mb <- multiblock(list(X, X))
+mb
+```
+
+# `multiframe`
+
+`multiframe` stores the design as its main component and represents each
+observation as a delayed computation via the `observation` class.  This is
+helpful when the underlying data are expensive to load into memory but the
+metadata can be manipulated using dplyr verbs.
+
+```{r}
+mf <- multiframe(list(X[1:5,], X[6:10,]), tibble(run = c(1,2)))
+mf
+```
+
+# `observation` and `observation_set`
+
+`observation` objects are functions that return a single data slice when called.
+An `observation_set` is simply a list of `observation` objects.  They provide a
+light–weight way of lazily accessing individual observations from a larger data
+source.
+
+# `foldlist`
+
+A `foldlist` is returned by `fold_over()` and represents a set of cross
+validation folds.  Each element contains an analysis set and an assessment set,
+both expressed using the same classes described above.
+
+# Summary
+
+These classes work together to support flexible representations of complex
+experimental designs.  Starting with a simple `multidesign`, you can build
+`hyperdesign` objects, perform cross–validation with `foldlist`, or defer data
+loading with `multiframe` and `observation`.
