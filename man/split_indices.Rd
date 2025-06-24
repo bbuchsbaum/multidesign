@@ -2,15 +2,60 @@
 % Please edit documentation in R/all_generic.R
 \name{split_indices}
 \alias{split_indices}
-\title{split indices}
+\title{Split Indices by Variables}
 \usage{
 split_indices(x, ...)
 }
 \arguments{
-\item{x}{the object to split}
+\item{x}{The object to split (data frame, multidesign, multiframe, etc.)}
 
-\item{...}{the splitting variables}
+\item{...}{Unquoted names of variables to split by}
+}
+\value{
+A tibble or list containing:
+  \item{group variables}{The splitting variables and their values}
+  \item{indices}{List column of integer vectors with row indices for each group}
 }
 \description{
-extract the row indices of a table, split by one or more variables
+Extracts the row indices of a dataset, split by one or more variables. This function
+is useful for creating grouped analyses, stratified sampling, or preparing data for
+cross-validation without actually duplicating the data.
+}
+\details{
+The function returns indices rather than the actual data, which is memory-efficient
+for large datasets. It works with various object types:
+* For data frames: Returns indices grouped by specified variables
+* For multidesign objects: Returns indices grouped by design variables
+* For multiframe objects: Returns indices grouped by design variables
+
+The resulting indices can be used to subset the original data or to create
+training/testing splits for machine learning.
+}
+\examples{
+# With a data frame
+dat <- data.frame(
+  x = 1:100,
+  group = rep(letters[1:4], each=25),
+  block = rep(1:5, times=20)
+)
+
+# Split by one variable
+indices_by_group <- split_indices(dat, group)
+
+# Split by multiple variables
+indices_by_group_block <- split_indices(dat, group, block)
+
+# Use indices to subset original data
+group_a_data <- dat[indices_by_group$indices[[1]], ]
+
+# With a multidesign object
+mds <- multidesign(matrix(rnorm(100*10), 100, 10),
+                  data.frame(group=rep(letters[1:4], each=25),
+                             block=rep(1:5, times=20)))
+mds_indices <- split_indices(mds, group)
+
+}
+\seealso{
+\code{\link{fold_over}} for creating cross-validation folds,
+  \code{\link{split}} for splitting the actual data
 }

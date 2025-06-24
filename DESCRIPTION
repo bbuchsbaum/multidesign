@@ -28,7 +28,7 @@ Imports:
     stats,
     utils,
     rlang
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.2.9000
 Suggests: 
     covr,
     testthat (>= 3.0.0),

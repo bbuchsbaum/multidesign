@@ -1,0 +1,3215 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: R/**/*.R, R/**/*.r, *.Rmd, *.rmd, DESCRIPTION, tests/**/*.R, tests/**/*.r
+- Files matching patterns in .gitignore are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+R/
+  all_generic.R
+  hyperdesign.R
+  multiblock.R
+  multidesign.R
+  multiframe.R
+tests/
+  testthat/
+    test-hyperdesign.R
+    test-multiblock.R
+    test-multidesign.R
+    test-multiframe.R
+  testthat.R
+DESCRIPTION
+README.Rmd
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="tests/testthat/test-hyperdesign.R">
+library(tibble)
+
+test_that("hyperdesign constructor works correctly", {
+  # Create test multidesign objects
+  X1 <- matrix(rnorm(50), 10, 5)
+  Y1 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(1, 10),
+    run = 1:10
+  )
+  col_design1 <- tibble::tibble(
+    type = letters[1:5],
+    group = rep(c("g1", "g2"), length.out=5)
+  )
+  d1 <- multidesign(X1, Y1, col_design1)
+
+  X2 <- matrix(rnorm(50), 10, 5)
+  Y2 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(2, 10),
+    run = 1:10
+  )
+  d2 <- multidesign(X2, Y2, col_design1)  # Use the same column design
+
+  # Create hyperdesign
+  hd <- hyperdesign(list(d1, d2))
+
+  # Test basic structure
+  expect_s3_class(hd, "hyperdesign")
+  expect_equal(length(hd), 2)
+  expect_equal(attr(hd, "common_vars"), c("condition", "subject", "run"))
+
+  # Test design extraction
+  all_designs <- design(hd)
+  expect_length(all_designs, 2)
+  expect_equal(sort(names(all_designs[[1]])), sort(c(names(Y1))))
+
+  # Test column_design extraction
+  all_col_designs <- column_design(hd)
+  expect_length(all_col_designs, 2)
+  expect_equal(names(all_col_designs[[1]]), c("type", "group"))
+
+  block1_col_design <- column_design(hd, block=1)
+  expect_equal(names(block1_col_design), c("type", "group"))
+  expect_equal(block1_col_design$type, letters[1:5])
+})
+
+test_that("fold_over creates valid cross-validation folds", {
+  # Create test data with non-confounded variables
+  X1 <- matrix(rnorm(50), 10, 5)
+  Y1 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(c(1, 2), each=5),  # Not confounded with blocks
+    run = 1:10
+  )
+  col_design1 <- tibble::tibble(
+    type = letters[1:5],
+    group = rep(c("g1", "g2"), length.out=5)
+  )
+  d1 <- multidesign(X1, Y1, col_design1)
+
+  X2 <- matrix(rnorm(50), 10, 5)
+  Y2 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(c(3, 4), each=5),  # Not confounded with blocks
+    run = 1:10
+  )
+  d2 <- multidesign(X2, Y2, col_design1)
+
+  # Create hyperdesign
+  hd <- hyperdesign(list(d1, d2))
+
+  # Test fold creation with non-confounded variable
+  folds <- fold_over(hd, subject)
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 4)  # 4 subjects = 4 folds
+
+  # Test that each fold has both analysis and assessment sets
+  expect_true(all(sapply(folds, function(f) {
+    !is.null(f$analysis) && !is.null(f$assessment)
+  })))
+
+  # Test that each fold's assessment set contains only one subject
+  expect_true(all(sapply(folds, function(f) {
+    # The assessment set is a single multidesign object
+    unique_subjects <- unique(f$assessment$design$subject)
+    length(unique_subjects) == 1
+  })))
+})
+
+test_that("fold_over handles confounded variables correctly", {
+  # Create a simple design where 'group' is confounded with blocks
+  X1 <- matrix(rnorm(20), 4, 5)
+  Y1 <- tibble(
+    group = c("A", "A", "A", "A"),  # Block 1 only has group A
+    value = 1:4
+  )
+
+  X2 <- matrix(rnorm(20), 4, 5)
+  Y2 <- tibble(
+    group = c("B", "B", "B", "B"),  # Block 2 only has group B
+    value = 5:8
+  )
+
+  md1 <- multidesign(X1, Y1)
+  md2 <- multidesign(X2, Y2)
+  hd <- hyperdesign(list(md1, md2))
+
+  # Test error for confounded variable 'group'
+  expect_error(
+    fold_over(hd, group),
+    "Variable 'group' is confounded with blocks"
+  )
+
+  # Test that non-confounded variable 'value' works
+  expect_no_error(fold_over(hd, value))
+})
+
+test_that("data extraction methods work correctly", {
+  # Create test data
+  X1 <- matrix(1:20, 4, 5)
+  Y1 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=2),
+    subject = rep(1, 4),
+    run = 1:4
+  )
+  col_design1 <- tibble::tibble(
+    type = letters[1:5],
+    group = rep(c("g1", "g2"), length.out=5)
+  )
+  d1 <- multidesign(X1, Y1, col_design1)
+
+  X2 <- matrix(21:40, 4, 5)
+  Y2 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=2),
+    subject = rep(2, 4),
+    run = 1:4
+  )
+  d2 <- multidesign(X2, Y2, col_design1)  # Use the same column design
+
+  # Create hyperdesign
+  hd <- hyperdesign(list(d1, d2))
+
+  # Test xdata extraction
+  all_data <- xdata(hd)
+  expect_length(all_data, 2)
+  expect_equal(all_data[[1]], X1)
+  expect_equal(all_data[[2]], X2)
+
+  block1_data <- xdata(hd, block=1)
+  expect_equal(block1_data, X1)
+
+  # Test design extraction
+  all_designs <- design(hd)
+  expect_length(all_designs, 2)
+  expect_equal(sort(names(all_designs[[1]])), sort(c(names(Y1))))
+
+  block1_design <- design(hd, block=1)
+  expect_equal(sort(names(block1_design)), sort(c(names(Y1))))
+
+  # Test column_design extraction
+  all_col_designs <- column_design(hd)
+  expect_length(all_col_designs, 2)
+  expect_equal(names(all_col_designs[[1]]), c("type", "group"))
+
+  block1_col_design <- column_design(hd, block=1)
+  expect_equal(names(block1_col_design), c("type", "group"))
+  expect_equal(block1_col_design$type, letters[1:5])
+})
+
+test_that("subsetting works correctly", {
+  # Create test data
+  X1 <- matrix(1:20, 4, 5)
+  Y1 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=2),
+    subject = rep(1, 4),
+    block = c(1,1,2,2)
+  )
+  d1 <- multidesign(X1, Y1)
+
+  X2 <- matrix(21:40, 4, 5)
+  Y2 <- tibble::tibble(
+    condition = rep(c("A", "B"), each=2),
+    subject = rep(2, 4),
+    block = c(1,1,2,2)
+  )
+  d2 <- multidesign(X2, Y2)
+
+  hd <- hyperdesign(list(d1, d2))
+
+  # Test subsetting by condition
+  subset_A <- subset(hd, condition == "A")
+  expect_s3_class(subset_A, "hyperdesign")
+  expect_true(all(sapply(subset_A, function(x) all(x$design$condition == "A"))))
+
+  # Test subsetting by multiple conditions
+  subset_A1 <- subset(hd, condition == "A" & subject == 1)
+  expect_true(all(sapply(subset_A1, function(x) {
+    all(x$design$condition == "A" & x$design$subject == 1)
+  })))
+})
+</file>
+
+<file path="tests/testthat/test-multiblock.R">
+test_that("multiblock creation works correctly", {
+  # Test column-stacked multiblock (same number of rows)
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  X3 <- matrix(25:36, 4, 3)
+  mb_c <- multiblock(list(X1, X2, X3))
+  
+  expect_s3_class(mb_c, "multiblock")
+  expect_s3_class(mb_c, "multiblock_c")
+  expect_equal(attr(mb_c, "orient"), "cstacked")
+  expect_equal(dim(attr(mb_c, "ind")), c(3, 2))  # 3 blocks, start/end indices
+  
+  # Test row-stacked multiblock (same number of columns)
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  Y3 <- matrix(26:35, 2, 5)
+  mb_r <- multiblock(list(Y1, Y2, Y3))
+  
+  expect_s3_class(mb_r, "multiblock")
+  expect_s3_class(mb_r, "multiblock_r")
+  expect_equal(attr(mb_r, "orient"), "rstacked")
+  expect_equal(dim(attr(mb_r, "ind")), c(3, 2))  # 3 blocks, start/end indices
+})
+
+test_that("block_indices extraction works", {
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  X3 <- matrix(25:36, 4, 3)
+  mb_c <- multiblock(list(X1, X2, X3))
+  
+  # Test indices for column-stacked blocks
+  expect_equal(block_indices(mb_c, 1), 1:3)     # First block columns
+  expect_equal(block_indices(mb_c, 2), 4:6)     # Second block columns
+  expect_equal(block_indices(mb_c, 3), 7:9)     # Third block columns
+  
+  # Test row-stacked indices
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  Y3 <- matrix(26:35, 2, 5)
+  mb_r <- multiblock(list(Y1, Y2, Y3))
+  
+  # For row-stacked blocks, indices represent rows
+  expect_equal(block_indices(mb_r, 1), 1:2)     # First block rows
+  expect_equal(block_indices(mb_r, 2), 3:5)     # Second block rows
+  expect_equal(block_indices(mb_r, 3), 6:7)     # Third block rows
+})
+
+test_that("stacking orientation checks work", {
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb_c <- multiblock(list(X1, X2))
+  
+  expect_true(is_cstacked(mb_c))
+  expect_false(is_rstacked(mb_c))
+  
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  mb_r <- multiblock(list(Y1, Y2))
+  
+  expect_true(is_rstacked(mb_r))
+  expect_false(is_cstacked(mb_r))
+})
+
+test_that("multiblock handles errors correctly", {
+  # Test error for matrices with no shared dimensions
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:20, 2, 4)
+  expect_error(
+    multiblock(list(X1, X2)),
+    "all matrices must share either row or column dimension"
+  )
+  
+  # Test error for non-matrix inputs
+  expect_error(
+    multiblock(list(1:3, 4:6)),
+    "Not all elements are matrices"
+  )
+  
+  # Test error for empty list
+  expect_error(
+    multiblock(list()),
+    "List is empty"
+  )
+  
+  # Test error for out of range block index
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb <- multiblock(list(X1, X2))
+  expect_error(
+    block_indices(mb, 3),
+    "`i` must be between 1 and 2, not 3"
+  )
+})
+</file>
+
+<file path="tests/testthat/test-multidesign.R">
+test_that("multidesign object creation works correctly", {
+  # Create test data
+  X <- matrix(1:20, 5, 4)
+  Y <- tibble(
+    condition = rep(c("A", "B"), c(2, 3)),
+    subject = 1:5
+  )
+  col_info <- tibble(
+    region = paste0("roi_", 1:4),
+    type = rep(c("cortical", "subcortical"), 2)
+  )
+  
+  # Test basic creation
+  md <- multidesign(X, Y)
+  expect_s3_class(md, "multidesign")
+  expect_equal(dim(md$x), c(5, 4))
+  expect_equal(nrow(md$design), 5)
+  expect_true(!is.null(md$column_design))
+  
+  # Test with column design
+  md_col <- multidesign(X, Y, col_info)
+  expect_equal(md_col$column_design, col_info)
+  
+  # Test error conditions
+  expect_error(
+    multidesign(X[1:3,], Y),
+    "`nrow\\(x\\)` must be equal to 5L"
+  )
+  expect_error(
+    multidesign(X, Y, col_info[1:2,]),
+    "`ncol\\(x\\)` must be equal to 2L"
+  )
+})
+
+test_that("subsetting works correctly", {
+  X <- matrix(1:20, 5, 4)
+  Y <- tibble(
+    condition = rep(c("A", "B"), c(2, 3)),
+    subject = 1:5
+  )
+  md <- multidesign(X, Y)
+  
+  # Test simple subsetting
+  sub_A <- subset(md, condition == "A")
+  expect_equal(nrow(sub_A$x), 2)
+  expect_equal(sub_A$design$condition, c("A", "A"))
+  
+  # Test multiple conditions
+  sub_AB1 <- subset(md, condition == "A" & subject <= 2)
+  expect_equal(nrow(sub_AB1$x), 2)
+  
+  # Test empty result
+  sub_none <- subset(md, condition == "C")
+  expect_null(sub_none)
+})
+
+test_that("splitting works correctly", {
+  X <- matrix(1:20, 5, 4)
+  Y <- tibble(
+    condition = rep(c("A", "B"), c(2, 3)),
+    subject = rep(1:3, length.out=5)
+  )
+  md <- multidesign(X, Y)
+  
+  # Test splitting by one variable
+  split_cond <- split(md, condition)
+  expect_length(split_cond, 2)  # A and B groups
+  expect_equal(nrow(split_cond[[1]]$x), 2)  # A group
+  expect_equal(nrow(split_cond[[2]]$x), 3)  # B group
+  
+  # Test splitting by multiple variables
+  split_both <- split(md, condition, subject)
+  expect_true(length(split_both) >= 2)
+  
+  # Test split_indices
+  indices <- split_indices(md, condition)
+  expect_equal(length(indices$indices), 2)
+})
+
+test_that("summarization works correctly", {
+  X <- matrix(1:20, 5, 4)
+  Y <- tibble(
+    condition = rep(c("A", "B"), c(2, 3)),
+    subject = rep(1:3, length.out=5)
+  )
+  md <- multidesign(X, Y)
+  
+  # Test summarization by condition
+  sum_cond <- summarize_by(md, condition)
+  expect_equal(nrow(sum_cond$x), 2)  # One row per condition
+  expect_equal(ncol(sum_cond$x), ncol(X))
+  expect_equal(sum_cond$design$condition, c("A", "B"))
+  
+  # Test custom summary function
+  sum_custom <- summarize_by(md, condition, sfun=function(x) apply(x, 2, sd))
+  expect_equal(dim(sum_custom$x), dim(sum_cond$x))
+})
+
+test_that("data extraction methods work", {
+  X <- matrix(1:20, 5, 4)
+  Y <- tibble(
+    condition = rep(c("A", "B"), c(2, 3)),
+    subject = 1:5
+  )
+  md <- multidesign(X, Y)
+  
+  # Test xdata extraction
+  expect_equal(xdata(md), X)
+  
+  # Test design extraction
+  expect_equal(design(md), Y)
+  
+  # Test column_design extraction
+  expect_true(!is.null(column_design(md)))
+})
+</file>
+
+<file path="tests/testthat/test-multiframe.R">
+test_that("observation_set creation works correctly", {
+  # Test matrix input
+  X_mat <- matrix(1:20, 5, 4)
+  obs_mat <- obs_group(X_mat)
+  expect_s3_class(obs_mat, "observation_set")
+  expect_length(obs_mat, 5)
+  expect_equal(as.vector(obs_mat[[1]]), as.vector(X_mat[1,]))  # Compare as vectors
+  
+  # Test list input
+  X_list <- list(a=1:4, b=5:8, c=9:12)
+  obs_list <- obs_group(X_list)
+  expect_s3_class(obs_list, "observation_set")
+  expect_length(obs_list, 3)
+  expect_equal(obs_list[[1]], X_list[[1]])
+  
+  # Test custom indices
+  ind <- c(10, 20, 30)
+  obs_ind <- obs_group(X_list, ind=ind)
+  expect_length(obs_ind, 3)
+  
+  # Test error conditions
+  expect_error(obs_group(list()), "must not be empty")
+  expect_error(obs_group(X_list, ind=1:4), "must be equal to")
+})
+
+test_that("multiframe list constructor works correctly", {
+  # Create test data
+  x <- list(
+    matrix(1:12, 3, 4),
+    matrix(13:24, 3, 4),
+    matrix(25:36, 3, 4)
+  )
+  y <- data.frame(
+    condition = c("A", "B", "C"),
+    block = 1:3
+  )
+  
+  # Test basic creation
+  mf <- multiframe(x, y)
+  expect_s3_class(mf, "multiframe")
+  expect_equal(nrow(mf$design), 3)
+  expect_true(all(c("condition", "block", ".obs", ".index") %in% names(mf$design)))
+  expect_equal(length(mf$design$.obs), 3)  # Check number of observation functions
+  
+  # Test observation access
+  first_obs <- mf$design$.obs[[1]]()
+  expect_equal(dim(first_obs), c(3, 4))  # Check dimensions of first observation
+  
+  # Test with inconsistent dimensions
+  x_bad <- list(
+    matrix(1:12, 3, 4),
+    matrix(13:24, 3, 4),
+    matrix(25:36, 3, 4)   # Fixed dimensions to match
+  )
+  
+  # This should now work since dimensions are consistent
+  mf_consistent <- multiframe(x_bad, y)
+  expect_s3_class(mf_consistent, "multiframe")
+  
+  # Test with different dimensions to ensure error
+  x_bad2 <- list(
+    matrix(1:12, 3, 4),
+    matrix(13:24, 3, 4),
+    matrix(25:40, 4, 4)   # Different number of rows
+  )
+  expect_error(
+    multiframe(x_bad2, y),
+    "All elements must have the same number of rows"
+  )
+  
+  # Test with empty elements
+  x_invalid <- list(matrix(1:12, 3, 4), numeric(0))
+  expect_error(
+    multiframe(x_invalid, y[1:2,]),
+    "All elements must be non-empty"
+  )
+  
+  # Test dimension mismatch
+  expect_error(
+    multiframe(x, y[1:2,]),
+    "must be equal to"
+  )
+})
+
+test_that("multiframe matrix constructor works correctly", {
+  # Create test data
+  x <- matrix(1:40, 10, 4)
+  y <- data.frame(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(1:5, times=2)
+  )
+  
+  # Test basic creation
+  mf <- multiframe(x, y)
+  expect_s3_class(mf, "multiframe")
+  expect_equal(nrow(mf$design), 10)
+  expect_true(all(c("condition", "subject", ".obs", ".index") %in% names(mf$design)))
+  
+  # Test observation access
+  first_obs <- mf$design$.obs[[1]]()
+  expect_equal(dim(first_obs), c(1, 4))  # Each observation is a 1x4 matrix
+  
+  # Test error conditions
+  expect_error(
+    multiframe(x[1:5,], y),
+    "must be equal to"
+  )
+})
+
+test_that("multiframe splitting works correctly", {
+  # Create test data
+  x <- matrix(1:40, 10, 4)
+  y <- data.frame(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(1:5, times=2)
+  )
+  mf <- multiframe(x, y)
+  
+  # Test splitting by one variable
+  split_cond <- split(mf, condition)
+  expect_equal(nrow(split_cond), 2)  # Two conditions
+  expect_equal(nrow(split_cond$data[[1]]), 5)  # 5 observations per condition
+  
+  # Test splitting by multiple variables
+  split_both <- split(mf, condition, subject)
+  expect_equal(nrow(split_both), 10)  # 2 conditions * 5 subjects
+  
+  # Test collapsing
+  split_collapsed <- split(mf, condition, collapse=TRUE)
+  expect_equal(nrow(split_collapsed), 2)
+  expect_true(is.matrix(split_collapsed$data[[1]]))
+})
+
+test_that("multiframe summarization works correctly", {
+  # Create test data
+  x <- matrix(1:40, 10, 4)
+  y <- data.frame(
+    condition = rep(c("A", "B"), each=5),
+    subject = rep(1:5, times=2)
+  )
+  mf <- multiframe(x, y)
+  
+  # Test basic summarization
+  sum_cond <- summarize_by(mf, condition)
+  expect_equal(nrow(sum_cond), 2)  # Two conditions
+  expect_true(is.numeric(sum_cond$data[[1]]))
+  expect_equal(length(sum_cond$data[[1]]), ncol(x))
+  
+  # Test with custom summary function
+  sum_custom <- summarize_by(mf, condition, sfun=function(x) apply(x, 2, sd))
+  expect_equal(nrow(sum_custom), 2)
+  expect_equal(length(sum_custom$data[[1]]), ncol(x))
+  
+  # Test with data extraction
+  sum_extract <- summarize_by(mf, condition, extract_data=TRUE)
+  expect_true(is.matrix(sum_extract))
+  expect_equal(nrow(sum_extract), 2)
+  expect_equal(ncol(sum_extract), ncol(x))
+})
+</file>
+
+<file path="R/multiframe.R">
+#' Create a Multiframe from a List
+#'
+#' @description
+#' Creates a multiframe object from a list of observations and associated design information.
+#' A multiframe combines experimental design metadata with lazy-evaluated observations.
+#' Each element in the list must have consistent dimensions (same number of columns if matrices,
+#' or same length if vectors).
+#'
+#' @param x A list containing observations (matrices, arrays, or vectors)
+#' @param y A data frame containing design variables. Must have same number of rows as length of x
+#' @param ... Additional arguments (currently unused)
+#' @return A multiframe object containing a design tibble with observation functions
+#'
+#' @examples
+#' # Create list of observations (matrices with same number of columns)
+#' x <- list(
+#'   matrix(1:12, 3, 4),  # 3x4 matrix
+#'   matrix(13:24, 3, 4), # 3x4 matrix
+#'   matrix(25:36, 3, 4)  # 3x4 matrix
+#' )
+#' 
+#' # Create design information
+#' y <- data.frame(
+#'   condition = c("A", "B", "C"),
+#'   block = 1:3
+#' )
+#' 
+#' # Create multiframe
+#' mf <- multiframe(x, y)
+#' 
+#' # Access first observation
+#' obs1 <- mf$design$.obs[[1]]()
+#' 
+#' # View design information
+#' print(mf$design)
+#'
+#' @family multiframe functions
+#' @export
+multiframe.list <- function(x, y, ...) {
+  chk::chk_list(x)
+  chk::chk_not_empty(x)
+  
+  # Check if all elements are matrices/arrays/vectors
+  valid_types <- sapply(x, function(elem) {
+    is.matrix(elem) || is.array(elem) || is.vector(elem)
+  })
+  if (!all(valid_types)) {
+    stop("All elements in x must be matrices, arrays, or vectors")
+  }
+  
+  # Get number of rows and columns for each element
+  dims <- lapply(x, function(elem) {
+    if (is.matrix(elem) || is.array(elem)) {
+      c(nrow(elem), ncol(elem))
+    } else if (is.vector(elem)) {
+      if (length(elem) == 0) {
+        c(0, 0)
+      } else {
+        c(1, length(elem))
+      }
+    }
+  })
+  
+  # Check for empty elements
+  empty_elems <- sapply(dims, function(d) any(d == 0))
+  if (any(empty_elems)) {
+    stop("All elements must be non-empty")
+  }
+  
+  # Check if all elements have the same number of columns
+  ncols <- sapply(dims, `[`, 2)
+  if (length(unique(ncols)) > 1) {
+    stop("All elements must have the same number of columns/length. Found dimensions: ", 
+         paste(ncols, collapse=", "))
+  }
+  
+  # Check if all elements have the same number of rows
+  nrows <- sapply(dims, `[`, 1)
+  if (length(unique(nrows)) > 1) {
+    stop("All elements must have the same number of rows. Found dimensions: ", 
+         paste(nrows, collapse=", "))
+  }
+
+  y <- tibble::as_tibble(y)
+  chk::chk_equal(length(x), nrow(y))
+  
+  # Create indices first
+  indices <- seq_len(nrow(y))
+  
+  # Create observation functions with captured indices
+  obs_fns <- lapply(indices, function(i) {
+    observation.list(x, i)
+  })
+  
+  # Add to design tibble
+  des <- y
+  des$.index <- indices
+  des$.obs <- obs_fns
+  
+  structure(list(design=des), class="multiframe")
+}
+
+#' Create a Multiframe from a Matrix
+#'
+#' @description
+#' Creates a multiframe object from a matrix of observations and associated design information.
+#' Each row of the matrix becomes a lazy-evaluated observation.
+#'
+#' @param x A matrix where rows are observations and columns are variables
+#' @param y A data frame containing design variables. Must have same number of rows as x
+#' @param ... Additional arguments (currently unused)
+#' @return A multiframe object containing a design tibble with observation functions
+#'
+#' @examples
+#' # Create matrix of observations (10 observations x 4 variables)
+#' x <- matrix(1:40, 10, 4)
+#' colnames(x) <- paste0("var", 1:4)  # Optional: name the variables
+#' 
+#' # Create design information with two factors
+#' y <- data.frame(
+#'   condition = rep(c("A", "B"), each=5),
+#'   subject = rep(1:5, times=2)
+#' )
+#' 
+#' # Create multiframe
+#' mf <- multiframe(x, y)  # Using the generic method
+#' 
+#' # Access first observation
+#' first_obs <- mf$design$.obs[[1]]()
+#' print(first_obs)  # Shows the first row of x as a matrix
+#' 
+#' # View design structure with observation functions
+#' head(mf$design)
+#'
+#' @family multiframe functions
+#' @importFrom dplyr mutate rowwise n
+#' @export
+multiframe.matrix <- function(x, y, ...) {
+  chk::chk_matrix(x)
+  y <- tibble::as_tibble(y)
+  chk::chk_equal(nrow(x), nrow(y))
+  
+  # Create indices first
+  indices <- seq_len(nrow(y))
+  
+  # Create observation functions with captured indices
+  obs_fns <- lapply(indices, function(i) {
+    observation.matrix(x, i)
+  })
+  
+  # Add to design tibble
+  des <- y
+  des$.index <- indices
+  des$.obs <- obs_fns
+  
+  structure(list(design=des), class="multiframe")
+}
+
+#' Create an Observation Group
+#'
+#' @title Create a Group of Observations from Matrix or List Data
+#'
+#' @description
+#' Creates an observation group object that provides a unified interface for accessing
+#' individual observations from different data structures (matrices, lists, or deflists).
+#' Each observation is wrapped in a function that provides lazy evaluation.
+#'
+#' @param X A matrix, list, or deflist containing the data
+#' @param fun Optional function to apply to each observation
+#' @param ind Optional vector of indices for the observations. If NULL, uses sequential indices
+#'
+#' @return An observation_set object containing lazy-evaluated observations
+#'
+#' @examples
+#' # From a matrix
+#' X <- matrix(rnorm(100), 20, 5)
+#' obs <- obs_group(X)
+#' 
+#' # From a list
+#' X_list <- list(a=1:5, b=6:10, c=11:15)
+#' obs_list <- obs_group(X_list)
+#'
+#' @family multiframe functions
+#' @export
+obs_group <- function(X, fun=NULL, ind=NULL) {
+  chk::chk_not_empty(X)
+  chk::chkor_vld(chk::vld_s3_class(X, "matrix"), 
+                 chk::vld_s3_class(X, "list"), 
+                 chk::vld_s3_class(X, "deflist"))
+
+  ret <- if (inherits(X, "list") || inherits(X, "deflist")) {
+    if (is.null(ind)) {
+      ind <- 1:length(X)
+    } else {
+      chk::chk_equal(length(X), length(ind))
+    }
+    lapply(1:length(X), function(i) {
+      observation.list(X, ind[i])
+    })
+  } else {
+    if (is.null(ind)) {
+      ind <- 1:nrow(X)
+    } else {
+      chk::chk_equal(length(X), length(ind))
+    }
+    lapply(1:nrow(X), function(i) {
+      observation.matrix(X, ind[i])
+    })
+  }
+
+  structure(ret, class="observation_set")
+}
+
+#' Extract Single Observation from Observation Set
+#'
+#' @description
+#' Extracts a single observation from an observation_set using double bracket indexing.
+#' The result is automatically evaluated.
+#'
+#' @param x An observation_set object
+#' @param i Index of the observation to extract
+#' @return The evaluated observation
+#'
+#' @family multiframe functions
+#' @export
+`[[.observation_set` <- function(x,i) {
+  z <- NextMethod()
+  z()
+}
+
+#' Extract Multiple Observations from Observation Set
+#'
+#' @description
+#' Extracts multiple observations from an observation_set using single bracket indexing.
+#' All selected observations are automatically evaluated.
+#'
+#' @param x An observation_set object
+#' @param i Indices of observations to extract
+#' @return List of evaluated observations
+#'
+#' @family multiframe functions
+#' @export
+`[.observation_set` <- function(x, i) {
+  z <- NextMethod()
+  lapply(z, function(zi) zi())
+}
+
+#' Create Observation from Deflist
+#'
+#' @description
+#' Creates a lazy-evaluated observation from a deflist object.
+#'
+#' @param x A deflist object
+#' @param i Index of the observation to create
+#' @return An observation object (function) that returns the data when called
+#'
+#' @family multiframe functions
+#' @export
+observation.deflist <- function(x, i) {
+  function() {
+    x[[i]]
+  }
+}
+
+#' Create Observation from Vector
+#'
+#' @description
+#' Creates a lazy-evaluated observation from a vector.
+#'
+#' @param x A vector
+#' @param i Index (ignored for vectors, as they represent a single observation)
+#' @return An observation object (function) that returns the vector when called
+#'
+#' @family multiframe functions
+#' @export
+observation.vector <- function(x,i) {
+  chk::chk_scalar(i)
+  f <- function() {
+    x
+  }
+
+  structure(f, i=i, class="observation")
+}
+
+#' Create Observation from Matrix
+#'
+#' @description
+#' Creates a lazy-evaluated observation from a row of a matrix.
+#'
+#' @param x A matrix
+#' @param i Row index of the observation to create
+#' @return An observation object (function) that returns the matrix row when called
+#'
+#' @family multiframe functions
+#' @export
+observation.matrix <- function(x, i) {
+  function() {
+    matrix(x[i,], nrow=1)  # Ensure output is a 1xn matrix
+  }
+}
+
+#' Create Observation from List
+#'
+#' @description
+#' Creates a lazy-evaluated observation from a list element.
+#'
+#' @param x A list
+#' @param i Index of the list element to create as an observation
+#' @return An observation object (function) that returns the list element when called
+#'
+#' @family multiframe functions
+#' @export
+observation.list <- function(x, i) {
+  function() {
+    x[[i]]
+  }
+}
+
+#' Split a Multiframe by Design Variables
+#'
+#' @description
+#' Splits a multiframe into groups based on one or more design variables.
+#' Optionally collapses the observations within each group into a single matrix.
+#'
+#' @param x A multiframe object
+#' @param ... Unquoted names of variables to split by
+#' @param collapse Logical; if TRUE, combines observations in each group into a matrix
+#' @return A nested tibble containing the split data
+#'
+#' @examples
+#' x <- matrix(1:40, 10, 4)
+#' y <- data.frame(
+#'   condition = rep(c("A", "B"), each=5),
+#'   subject = rep(1:5, times=2)
+#' )
+#' mf <- multiframe(x, y)
+#' 
+#' # Split by condition
+#' split_by_cond <- split(mf, condition)
+#' 
+#' # Split by condition and subject, collapsing observations
+#' split_by_both <- split(mf, condition, subject, collapse=TRUE)
+#'
+#' @family multiframe functions
+#' @export
+split.multiframe <- function(x, ..., collapse=FALSE) {
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by)
+
+  if (collapse) {
+    ret <- ret %>% rowwise() %>% mutate(data={
+      list(do.call(rbind, lapply(data$.obs, function(o) o())))
+    })
+  }
+
+  ret
+}
+
+#' Summarize a Multiframe by Design Variables
+#'
+#' @description
+#' Computes summaries of observations grouped by design variables.
+#'
+#' @param x A multiframe object
+#' @param sfun Summary function to apply (default is colMeans)
+#' @param extract_data Logical; if TRUE, returns just the summarized data
+#' @param ... Unquoted names of variables to group by
+#' @return A tibble containing summarized data for each group
+#'
+#' @examples
+#' x <- matrix(1:40, 10, 4)
+#' y <- data.frame(
+#'   condition = rep(c("A", "B"), each=5),
+#'   subject = rep(1:5, times=2)
+#' )
+#' mf <- multiframe(x, y)
+#' 
+#' # Get means by condition
+#' means_by_cond <- summarize_by(mf, condition)
+#'
+#' @family multiframe functions
+#' @export
+summarize_by.multiframe <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
+  nest.by <- rlang::enquos(...)
+  ret <- x$design %>% dplyr::group_by(!!!nest.by) %>% tidyr::nest()
+
+  ret <- ret %>% dplyr::rowwise() %>% dplyr::mutate(data = {
+    list(sfun(do.call(rbind, lapply(data$.obs, function(o) o()))))
+  })
+
+  if (extract_data) {
+    ret <- do.call(rbind, ret$data %>% purrr::map(~ .x))
+  }
+
+  ret
+}
+
+#' Print Method for Observation Set Objects
+#'
+#' @description
+#' Displays a formatted summary of an observation set object.
+#'
+#' @param x An observation_set object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#'
+#' @method print observation_set
+#' @export
+print.observation_set <- function(x, ...) {
+  n_obs <- length(x)
+  
+  cat(crayon::bold(crayon::blue("\n=== Observation Set ===\n")))
+  cat("\n", crayon::green(paste0("Number of Observations: ", n_obs)), "\n")
+  
+  # Sample a few observations if there are many
+  if (n_obs > 0) {
+    cat(crayon::bold("\nSample Observations:"), "\n")
+    sample_size <- min(3, n_obs)
+    sample_indices <- sort(sample(n_obs, sample_size))
+    
+    for (i in sample_indices) {
+      obs <- x[[i]]
+      if (is.matrix(obs)) {
+        dims <- dim(obs)
+        cat("  ", crayon::white("-"), " Observation ", i, ": ", 
+            crayon::green(paste0(dims[1], " x ", dims[2], " matrix")), "\n", sep="")
+      } else {
+        cat("  ", crayon::white("-"), " Observation ", i, ": ", 
+            crayon::green(paste0(typeof(obs), " [length: ", length(obs), "]")), "\n", sep="")
+      }
+    }
+    if (n_obs > sample_size) {
+      cat("  ", crayon::white("-"), " ", crayon::yellow("... and", n_obs - sample_size, "more observations"), "\n")
+    }
+  }
+  
+  cat(crayon::bold(crayon::blue("\n=====================\n")))
+  invisible(x)
+}
+
+#' Print Method for Multiframe Objects
+#'
+#' @description
+#' Displays a formatted summary of a multiframe object.
+#'
+#' @param x A multiframe object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#'
+#' @method print multiframe
+#' @export
+print.multiframe <- function(x, ...) {
+  cat(crayon::bold(crayon::blue("\n=== Multiframe Object ===\n")))
+  
+  # Basic information
+  n_obs <- nrow(x$design)
+  design_vars <- names(x$design)[!names(x$design) %in% c(".index", ".obs")]
+  
+  cat("\n", crayon::green(paste0("Number of Observations: ", n_obs)), "\n")
+  
+  # Design variables
+  cat(crayon::bold("\nDesign Variables:"), "\n")
+  for (var in design_vars) {
+    unique_vals <- unique(x$design[[var]])
+    n_unique <- length(unique_vals)
+    sample_vals <- if (n_unique > 5) {
+      paste0(paste(head(unique_vals, 3), collapse=", "), 
+             "...", 
+             paste(tail(unique_vals, 2), collapse=", "))
+    } else {
+      paste(unique_vals, collapse=", ")
+    }
+    cat("  ", crayon::white("-"), " ", var, ": ", 
+        crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
+  }
+  
+  # Sample observations
+  if (n_obs > 0) {
+    cat(crayon::bold("\nSample Observations:"), "\n")
+    sample_size <- min(3, n_obs)
+    sample_indices <- sort(sample(n_obs, sample_size))
+    
+    for (i in sample_indices) {
+      obs <- x$design$.obs[[i]]()
+      if (is.matrix(obs)) {
+        dims <- dim(obs)
+        cat("  ", crayon::white("-"), " Observation ", i, ": ", 
+            crayon::green(paste0(dims[1], " x ", dims[2], " matrix")), "\n", sep="")
+      } else {
+        cat("  ", crayon::white("-"), " Observation ", i, ": ", 
+            crayon::green(paste0(typeof(obs), " [length: ", length(obs), "]")), "\n", sep="")
+      }
+    }
+    if (n_obs > sample_size) {
+      cat("  ", crayon::white("-"), " ", crayon::yellow("... and", n_obs - sample_size, "more observations"), "\n")
+    }
+  }
+  
+  cat(crayon::bold(crayon::blue("\n===================\n")))
+  invisible(x)
+}
+</file>
+
+<file path="tests/testthat.R">
+library(testthat)
+library(multidesign)
+
+test_check("multidesign")
+</file>
+
+<file path="README.Rmd">
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# multidesign
+
+<!-- badges: start -->
+[![Codecov test coverage](https://codecov.io/gh/bbuchsbaum/multidesign/branch/master/graph/badge.svg)](https://codecov.io/gh/bbuchsbaum/multidesign?branch=master)
+<!-- badges: end -->
+
+The goal of multidesign is to ...
+</file>
+
+<file path="R/multiblock.R">
+#' Create Index Matrix for Block Structure
+#'
+#' @description Internal function to compute start and end indices for blocks in a multiblock object
+#' @param x List of matrices
+#' @param byrow Logical; if TRUE compute row indices, if FALSE compute column indices
+#' @return Matrix with two columns: 'start' and 'end' indices for each block
+#' @keywords internal
+block_index_mat2 <- function(x, byrow=FALSE) {
+  lens <- if (byrow) {
+    sapply(x, function(z) nrow(z))
+  } else {
+    sapply(x, function(z) ncol(z))
+  }
+
+  csum <- cumsum(lens)
+  csum1 <- c(0, csum[-length(csum)])
+  m <- as.matrix(cbind(csum1+1, csum))
+  colnames(m) <- c("start", "end")
+  m
+}
+
+#' Create a Multiblock Object from a List of Matrices
+#'
+#' @description 
+#' Creates a multiblock object from a list of matrices that share either row or column dimensions.
+#' The function automatically determines whether the matrices should be row-stacked or column-stacked
+#' based on their shared dimensions.
+#'
+#' @details
+#' The function checks if the input matrices can be combined either by:
+#' * Row-stacking: all matrices must have the same number of columns
+#' * Column-stacking: all matrices must have the same number of rows
+#'
+#' The resulting object maintains block structure information while allowing operations
+#' across the entire combined matrix.
+#'
+#' @param x A list of matrices (base or Matrix class objects)
+#' @return A multiblock object with the following attributes:
+#'   * ind: matrix of start/end indices for each block
+#'   * orient: orientation of stacking ("cstacked" or "rstacked")
+#'   * class: appropriate class labels for dispatch
+#'
+#' @family multiblock functions
+#' @seealso 
+#'   [is_cstacked()] for checking stacking orientation,
+#'   [block_indices()] for accessing block-specific indices
+#'
+#' @examples
+#' # Create example matrices with shared row dimension (column-stacked)
+#' X1 <- matrix(rnorm(20*3), 20, 3)
+#' X2 <- matrix(rnorm(20*5), 20, 5)
+#' X3 <- matrix(rnorm(20*4), 20, 4)
+#' mb_c <- multiblock(list(X1, X2, X3))  # column-stacked
+#' is_cstacked(mb_c)  # TRUE
+#'
+#' # Create example matrices with shared column dimension (row-stacked)
+#' Y1 <- matrix(rnorm(10*5), 10, 5)
+#' Y2 <- matrix(rnorm(15*5), 15, 5)
+#' Y3 <- matrix(rnorm(20*5), 20, 5)
+#' mb_r <- multiblock(list(Y1, Y2, Y3))  # row-stacked
+#' is_rstacked(mb_r)  # TRUE
+#' @export
+multiblock.list <- function(x) {
+  if (length(x) == 0) {
+    stop("List is empty")
+  }
+  
+  # Check if all elements are matrices
+  is_matrix <- sapply(x, function(m) inherits(m, "matrix") || inherits(m, "Matrix"))
+  if (!all(is_matrix)) {
+    stop("Not all elements are matrices")
+  }
+
+  nr <- sapply(x, nrow)
+  nc <- sapply(x, ncol)
+
+  ret <- if (all(nr == nr[1])) {
+    ## c stacked
+    bind <- block_index_mat2(x, byrow=FALSE)  
+    structure(x,
+              ind=bind,
+              orient="cstacked",
+              class=c("multiblock_c", "multiblock_list", "multiblock", "list"))
+  } else if (all(nc == nc[1])) {
+    ## r stacked
+    bind <- block_index_mat2(x, byrow=TRUE)  
+    structure(x,
+              ind=bind,
+              orient="rstacked",
+              class=c("multiblock_r", "multiblock_list", "multiblock", "list"))
+  } else {
+    stop("all matrices must share either row or column dimension")
+  }
+}
+
+#' Extract Block Indices from Multiblock Object
+#'
+#' @description
+#' Retrieves the indices corresponding to a specific block in a multiblock object.
+#' These indices can be used to access the corresponding rows or columns in the 
+#' combined matrix representation.
+#'
+#' @param x A multiblock object
+#' @param i Integer specifying which block's indices to retrieve
+#' @return Integer vector of indices for the specified block
+#' @family multiblock functions
+#' @method block_indices multiblock_list
+#' @export
+#' 
+#' @examples 
+#' mb <- multiblock(list(matrix(1:10, 5, 2), matrix(11:20, 5, 2)))
+#' block_indices(mb, 1)
+#' block_indices(mb, 2)
+block_indices.multiblock_list <- function(x, i) {
+  chk::chk_range(i, c(1,length(x)))
+  ind <- attr(x, "ind")
+  seq(ind[i, 1], ind[i,2])
+}
+
+#' Transpose a Multiblock Object
+#'
+#' @description
+#' Transposes each matrix in a multiblock object and returns a new multiblock object.
+#' The stacking orientation will be switched (row-stacked becomes column-stacked and vice versa).
+#'
+#' @param x A multiblock object
+#' @return A new multiblock object with transposed matrices
+#' @family multiblock functions
+#' @export
+#' 
+#' @examples 
+#' mb <- multiblock(list(matrix(1:10, 5, 2), matrix(11:20, 5, 2)))
+#' mb_t <- t(mb)
+#' is_cstacked(mb_t)
+#' is_rstacked(mb_t)
+t.multiblock_list <- function(x) {
+  out <- lapply(x, t)
+  multiblock(out)
+}
+
+#' Test if Multiblock Object is Column-Stacked
+#'
+#' @description
+#' Checks if a multiblock object is column-stacked (matrices share row dimension).
+#'
+#' @param x A multiblock object
+#' @return Logical indicating if object is column-stacked
+#' @family multiblock functions
+#' @seealso [is_rstacked()]
+#' @method is_cstacked multiblock_list
+#' @export
+is_cstacked.multiblock_list <- function(x) {
+  inherits(x, "multiblock_c")
+}
+
+#' Test if Multiblock Object is Row-Stacked
+#'
+#' @description
+#' Checks if a multiblock object is row-stacked (matrices share column dimension).
+#'
+#' @param x A multiblock object
+#' @return Logical indicating if object is row-stacked
+#' @family multiblock functions
+#' @seealso [is_cstacked()]
+#' @method is_rstacked multiblock_list
+#' @export
+is_rstacked.multiblock_list <- function(x) {
+  inherits(x, "multiblock_r")
+}
+
+#' Print Method for Multiblock Objects
+#'
+#' @description
+#' Displays a summary of a multiblock object, including the number of blocks,
+#' stacking orientation, and dimensions of each block.
+#'
+#' @param x A multiblock object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#' @method print multiblock_list
+#' @export
+print.multiblock_list <- function(x, ...) {
+  cat(crayon::bold(crayon::blue("\n═══ Multiblock Object ═══\n")))
+  cat(crayon::bold("\nNumber of blocks: "), crayon::green(length(x)), "\n")
+  cat(crayon::bold("Orientation: "), crayon::green(attr(x, "orient")), "\n\n")
+  
+  if (attr(x, "orient") == "cstacked") {
+    cat(crayon::bold("Shared dimension: "), 
+        crayon::green(paste(nrow(x[[1]]), "rows")), "\n")
+    cat(crayon::bold("Block-specific columns: "), 
+        crayon::green(paste(sapply(x, ncol), collapse=", ")), "\n")
+    cat(crayon::bold("Total columns: "), 
+        crayon::green(sum(sapply(x, ncol))), "\n")
+  } else {
+    cat(crayon::bold("Shared dimension: "), 
+        crayon::green(paste(ncol(x[[1]]), "columns")), "\n")
+    cat(crayon::bold("Block-specific rows: "), 
+        crayon::green(paste(sapply(x, nrow), collapse=", ")), "\n")
+    cat(crayon::bold("Total rows: "), 
+        crayon::green(sum(sapply(x, nrow))), "\n")
+  }
+  
+  cat(crayon::bold(blue("\n═══════════════════════\n")))
+  invisible(x)
+}
+</file>
+
+<file path="DESCRIPTION">
+Package: multidesign
+Type: Package
+Title: Tools for Managing Complex Experimental Designs and Multi-Block Data
+Version: 0.1.0
+Authors@R: person("Bradley R.", "Buchsbaum", 
+    email = "brad.buchsbaum@gmail.com",
+    role = c("aut", "cre", "cph"),
+    comment = c(ORCID = "0000-0002-3392-2534"))
+Description: Manage and analyze complex experimental designs with multiple data blocks 
+    and nested structures. Implements methods for design matrix manipulation, 
+    cross-validation, and data splitting with support for lazy evaluation and 
+    memory-efficient processing. The package integrates with the 'tidyverse' ecosystem 
+    and extends functionality of 'tibble' and 'dplyr' for experimental design workflows.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports:
+    chk,
+    tibble,
+    dplyr,
+    multivarious,
+    crayon,
+    deflist,
+    purrr,
+    tidyr,
+    magrittr,
+    recipes,
+    stats,
+    utils,
+    rlang
+RoxygenNote: 7.3.2
+Suggests: 
+    covr,
+    testthat (>= 3.0.0),
+    knitr
+Config/testthat/edition: 3
+URL: https://github.com/bbuchsbaum/multidesign
+BugReports: https://github.com/bbuchsbaum/multidesign/issues
+VignetteBuilder: knitr
+</file>
+
+<file path="R/multidesign.R">
+#' @title Create a Multidesign Object from Matrix Data and Design Information
+#'
+#' @description
+#' Creates a multidesign object that combines experimental data (as a matrix) with design information
+#' (as a data frame) and optional column metadata. This structure is particularly useful for
+#' experimental designs where observations have multiple associated factors and variables may have metadata.
+#'
+#' @details
+#' A multidesign object consists of three main components:
+#' * A data matrix where rows represent observations and columns represent variables
+#' * A design data frame containing experimental factors and conditions for each observation
+#' * Optional column metadata describing properties of each variable
+#'
+#' The object maintains the relationship between these components while providing methods
+#' for manipulation, subsetting, and analysis.
+#'
+#' @param x A numeric matrix where rows are observations and columns are variables
+#' @param y A data frame containing design variables for each observation (must have same number of rows as x)
+#' @param column_design Optional data frame containing metadata for columns in x (must have same number of rows as ncol(x))
+#'
+#' @return A multidesign object with components:
+#'   \item{x}{The input data matrix}
+#'   \item{design}{A tibble containing design variables with an added .index column}
+#'   \item{column_design}{A tibble containing column metadata (empty if not provided)}
+#'
+#' @examples
+#' # Create example data matrix
+#' X <- matrix(rnorm(20*100), 20, 100)
+#'
+#' # Create design information
+#' Y <- tibble(
+#'   condition = rep(c("control", "treatment"), each=10),
+#'   subject = rep(1:5, times=4)
+#' )
+#'
+#' # Create column metadata
+#' col_info <- data.frame(
+#'   roi = paste0("region_", 1:100),
+#'   hemisphere = rep(c("left", "right"), 50)
+#' )
+#'
+#' # Create multidesign object
+#' mds <- multidesign(X, Y, col_info)
+#'
+#' @family multidesign functions
+#' @seealso
+#'   \code{\link{reduce.multidesign}} for dimensionality reduction,
+#'   \code{\link{split.multidesign}} for splitting by design variables
+#' @importFrom dplyr mutate rowwise n
+#' @export
+#' @rdname multidesign
+multidesign.matrix <- function(x, y, column_design=NULL) {
+  chk::chk_equal(nrow(x), nrow(y))
+  chk::chk_s3_class(y, "data.frame")
+  y <- as_tibble(y)
+
+  if (!is.null(column_design)) {
+    chk::chk_equal(ncol(x), nrow(column_design))
+    chk::chk_s3_class(column_design, "data.frame")
+    column_design <- as_tibble(column_design)
+  } else {
+    # Create a default column design with an index
+    column_design <- tibble::tibble(.index = seq_len(ncol(x)))
+  }
+
+  # Store the design without adding .index
+  structure(list(
+    x=x,
+    design=tibble::as_tibble(y),
+    column_design=column_design
+  ),
+  class="multidesign")
+}
+
+#' Reduce Dimensionality of a Multidesign Object
+#'
+#' @description
+#' Performs dimensionality reduction on the data matrix of a multidesign object while preserving
+#' the design structure. By default uses PCA, but supports any reduction method that returns
+#' a projector object.
+#'
+#' @param x A multidesign object
+#' @param nc Number of components to retain in the reduction
+#' @param ... Additional arguments passed to rfun
+#' @param rfun Function to perform dimensionality reduction, must return a projector object
+#'
+#' @return A reduced_multidesign object containing:
+#'   \item{x}{The reduced data matrix}
+#'   \item{design}{Original design information}
+#'   \item{projector}{The projection object used for reduction}
+#'
+#' @examples
+#' X <- matrix(rnorm(100*20), 100, 20)
+#' Y <- tibble(condition = rep(letters[1:4], each=25))
+#' mds <- multidesign(X, Y)
+#'
+#' # Reduce to 5 components using PCA
+#' reduced_mds <- reduce(mds, nc=5)
+#'
+#' @family multidesign functions
+#' @seealso \code{\link{multidesign}}
+#' @export
+reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(x$x, ncomp=nc,...)) {
+  projector <- rfun(x)
+  chk::chk_s3_class(projector, "projector")
+  rx <- multivarious::project(projector, x$x)
+  structure(list(
+    x=rx,
+    design=x$design,
+    projector=projector
+  ),
+  class=c("reduced_multidesign", "multidesign"))
+}
+
+#' Subset a Multidesign Object
+#'
+#' @description
+#' Creates a new multidesign object containing only observations that meet specified
+#' conditions based on design variables.
+#'
+#' @param x A multidesign object
+#' @param fexpr An expression used to filter observations based on design variables
+#'
+#' @return A new multidesign object containing only matching observations, or NULL if no matches
+#'
+#' @examples
+#' X <- matrix(rnorm(100*20), 100, 20)
+#' Y <- tibble(
+#'   condition = rep(c("A", "B"), each=50),
+#'   block = rep(1:2, times=50)
+#' )
+#' mds <- multidesign(X, Y)
+#'
+#' # Subset to condition A only
+#' mds_A <- subset(mds, condition == "A")
+#'
+#' # Subset to block 1 and condition A
+#' mds_A1 <- subset(mds, condition == "A" & block == 1)
+#'
+#' @family multidesign functions
+#' @seealso \code{\link{split.multidesign}}
+#' @export
+subset.multidesign <- function(x, fexpr) {
+  des2 <- filter(x$design, !!rlang::enquo(fexpr))
+  if (nrow(des2) == 0) {
+    NULL
+  } else {
+    # Use row numbers instead of .index
+    ind <- as.numeric(rownames(des2))
+    multidesign(x$x[ind,], des2, x$column_design)
+  }
+}
+
+#' Split a Multidesign Object by Design Variables
+#'
+#' @description
+#' Splits a multidesign object into multiple objects based on combinations of one or more
+#' design variables.
+#'
+#' @param x A multidesign object
+#' @param ... Unquoted names of variables to split by
+#' @param collapse Logical; whether to collapse the resulting list
+#'
+#' @return A list of multidesign objects, one for each combination of splitting variables
+#'
+#' @examples
+#' X <- matrix(rnorm(100*20), 100, 20)
+#' Y <- tibble(
+#'   condition = rep(c("A", "B"), each=50),
+#'   block = rep(1:2, times=50)
+#' )
+#' mds <- multidesign(X, Y)
+#'
+#' # Split by condition
+#' split_by_cond <- split(mds, condition)
+#'
+#' # Split by condition and block
+#' split_by_both <- split(mds, condition, block)
+#'
+#' @family multidesign functions
+#' @seealso \code{\link{subset.multidesign}}
+#' @export
+split.multidesign <- function(x, ..., collapse=FALSE) {
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
+  # Use row numbers instead of .index
+  xl <- ret$data %>% purrr::map(~{
+    ind <- as.numeric(rownames(.x))
+    x$x[ind, , drop=FALSE]
+  })
+  ret <- lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]], x$column_design))
+}
+
+#' Get Split Indices for a Multidesign Object
+#'
+#' @description
+#' Returns indices for splitting a multidesign object based on combinations of design variables,
+#' without actually splitting the data.
+#'
+#' @param x A multidesign object
+#' @param ... Unquoted names of variables to split by
+#' @param collapse Logical; whether to collapse the resulting indices
+#'
+#' @return A tibble containing:
+#'   \item{group variables}{The splitting variables and their values}
+#'   \item{indices}{List column of indices for each group}
+#'   \item{.splitvar}{Combined string of grouping values}
+#'
+#' @family multidesign functions
+#' @seealso \code{\link{split.multidesign}}
+#' @export
+#' @importFrom tidyr unite
+split_indices.multidesign <- function(x, ..., collapse=FALSE) {
+  nest.by <- rlang::quos(...)
+
+  # Convert numeric variables to factors for proper grouping
+  design_copy <- x$design %>%
+    mutate(across(where(is.numeric), as.factor))
+
+  ret <- design_copy %>% nest_by(!!!nest.by, .keep=TRUE)
+  # Use row numbers instead of .index
+  xl <- ret$data %>% purrr::map(~ as.numeric(rownames(.x)))
+
+  # Get group variable names
+  group_vars <- colnames(ret %>% select(dplyr::group_vars(ret)))
+
+  # Create .splitvar by uniting all group variables with underscore
+  selret <- ret %>% select(dplyr::group_vars(ret))
+  out <- selret %>%
+    ungroup() %>%
+    mutate(
+      indices = xl,
+      .splitvar = if (length(group_vars) > 0) {
+        unite(selret, "temp", all_of(group_vars), sep="_") %>% pull(temp)
+      } else {
+        rep("all", nrow(selret))
+      }
+    )
+
+  out
+}
+
+#' Summarize a Multidesign Object by Design Variables
+#'
+#' @description
+#' Computes summaries of the data matrix grouped by combinations of design variables.
+#'
+#' @param x A multidesign object
+#' @param ... Unquoted names of variables to group by
+#' @param sfun Summary function to apply (default is colMeans)
+#' @param extract_data Logical; whether to extract raw data instead of computing summary
+#'
+#' @return A new multidesign object containing:
+#'   \item{x}{Matrix of summary statistics}
+#'   \item{design}{Design information for each summary}
+#'   \item{column_design}{Original column metadata}
+#'
+#' @examples
+#' X <- matrix(rnorm(100*20), 100, 20)
+#' Y <- tibble(
+#'   condition = rep(c("A", "B"), each=50),
+#'   block = rep(1:2, times=50)
+#' )
+#' mds <- multidesign(X, Y)
+#'
+#' # Get means by condition
+#' means_by_cond <- summarize_by(mds, condition)
+#'
+#' # Get means by condition and block
+#' means_by_both <- summarize_by(mds, condition, block)
+#'
+#' @family multidesign functions
+#' @seealso \code{\link{split.multidesign}}
+#' @export
+summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
+  #nested <- split(x, ...)
+  nest.by <- rlang::quos(...)
+  ret <- x$design %>% nest_by(!!!nest.by)
+
+  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], drop=FALSE,])))
+  ret2 <- ret %>% select(-data)
+  multidesign(dsum, ret2, x$column_design)
+}
+
+#' Extract Data Matrix from a Multidesign Object
+#'
+#' @description
+#' Returns the data matrix component of a multidesign object.
+#'
+#' @param x A multidesign object
+#' @return The data matrix stored in the multidesign object
+#'
+#' @family multidesign functions
+#' @export
+xdata.multidesign <- function(x) x$x
+
+#' Extract Design Information from a Multidesign Object
+#'
+#' @description
+#' Returns the design data frame component of a multidesign object.
+#'
+#' @param x A multidesign object
+#' @return The design data frame stored in the multidesign object
+#'
+#' @family multidesign functions
+#' @export
+design.multidesign <- function(x) x$design
+
+#' Extract the column design from a multidesign object
+#'
+#' @param x A multidesign object
+#' @param ... Additional arguments passed to methods
+#' @return The column design data frame
+#' @export
+#' @method column_design multidesign
+column_design.multidesign <- function(x, ...) {
+  x$column_design
+}
+
+#' @export
+#' @importFrom deflist deflist
+fold_over.multidesign <- function(x, ...) {
+  args <- rlang::enquos(...)
+  splits <- split_indices(x,!!!args)
+  foldframe <- splits %>% mutate(.fold=1:n())
+
+  extract <- function(i) {
+    #browser()
+    block <- foldframe[[".fold"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    testdat <- multidesign(xdata(x)[ind,], x$design[ind,])
+    ## all blocks except
+    traindat <- multidesign(xdata(x)[-ind,], x$design[-ind,])
+    list(analysis=traindat,
+         assessment=testdat)
+
+  }
+
+  tlen <- nrow(foldframe)
+  ret <- deflist(extract, len=tlen)
+  names(ret) <- paste0("fold_", 1:length(ret))
+  class(ret) <- c("foldlist", class(ret))
+  attr(ret, "foldframe") <- foldframe
+  ret
+}
+
+
+#' Print Method for Multidesign Objects
+#'
+#' @description
+#' Displays a detailed summary of a multidesign object, including data dimensions,
+#' design variables, and column metadata if present.
+#'
+#' @param x A multidesign object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#' @method print multidesign
+#' @export
+print.multidesign <- function(x, ...) {
+  # Header
+  cat(crayon::bold(crayon::blue("\n═══ Multidesign Object ═══\n")))
+
+  # Data matrix dimensions
+  cat("\nData Matrix: \n")
+  cat("  ", nrow(x$x), "observations ×", ncol(x$x), "variables \n")
+
+  # Design variables
+  cat("\nDesign Variables: \n")
+  design_vars <- names(x$design)[!names(x$design) %in% c(".index")]
+  for (var in design_vars) {
+    unique_vals <- unique(x$design[[var]])
+    n_unique <- length(unique_vals)
+    sample_vals <- if (n_unique > 5) {
+      paste0(paste(head(unique_vals, 3), collapse=", "),
+             "...",
+             paste(tail(unique_vals, 2), collapse=", "))
+    } else {
+      paste(unique_vals, collapse=", ")
+    }
+    cat("  ", crayon::white("•"), " ", var, ": ",
+        crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
+  }
+
+  # Column metadata if present
+  if (!is.null(x$column_design) && ncol(x$column_design) > 0) {
+    cat("\nColumn Metadata:\n")
+    col_vars <- names(x$column_design)
+    for (var in col_vars) {
+      unique_vals <- unique(x$column_design[[var]])
+      n_unique <- length(unique_vals)
+      sample_vals <- if (n_unique > 5) {
+        paste0(paste(head(unique_vals, 3), collapse=", "),
+               "...",
+               paste(tail(unique_vals, 2), collapse=", "))
+      } else {
+        paste(unique_vals, collapse=", ")
+      }
+      cat("  ", crayon::white("•"), " ", var, ": ",
+          crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
+    }
+  }
+
+  # Footer
+  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
+  invisible(x)
+}
+
+#' Print Method for Reduced Multidesign Objects
+#'
+#' @description
+#' Displays a detailed summary of a reduced multidesign object, including original
+#' and reduced dimensions, design variables, and column metadata if present.
+#'
+#' @param x A reduced_multidesign object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#' @method print reduced_multidesign
+#' @export
+print.reduced_multidesign <- function(x, ...) {
+  cat(crayon::bold(crayon::blue("\n═══ Reduced Multidesign Object ═══\n")))
+
+  # Dimension information
+  cat(crayon::bold("\nDimensionality:"), "\n")
+  cat("  Original: ", crayon::green(multivarious::shape(x$projector)[1]), " variables\n", sep="")
+  cat("  Reduced:  ", crayon::green(multivarious::shape(x$projector)[2]), " components\n", sep="")
+
+  # Data dimensions
+  cat(crayon::bold("\nData Matrix:"), "\n")
+  cat("  ", crayon::green(paste0(nrow(x$x), " observations × ", ncol(x$x), " components")), "\n")
+
+  # Design variables
+  cat(crayon::bold("\nDesign Variables:"), "\n")
+  design_vars <- names(x$design)
+  design_vars <- design_vars[design_vars != ".index"]
+  for (var in design_vars) {
+    unique_vals <- unique(x$design[[var]])
+    n_unique <- length(unique_vals)
+    sample_vals <- if (n_unique > 5) {
+      paste0(paste(head(unique_vals, 3), collapse=", "),
+             "...",
+             paste(tail(unique_vals, 2), collapse=", "))
+    } else {
+      paste(unique_vals, collapse=", ")
+    }
+    cat("  ", crayon::white("•"), " ", var, ": ",
+        crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
+  }
+
+  # Column metadata if present
+  if (ncol(x$column_design) > 0) {
+    cat(crayon::bold("\nColumn Metadata:"), "\n")
+    col_vars <- names(x$column_design)
+    for (var in col_vars) {
+      unique_vals <- unique(x$column_design[[var]])
+      n_unique <- length(unique_vals)
+      sample_vals <- if (n_unique > 5) {
+        paste0(paste(head(unique_vals, 3), collapse=", "),
+               "...",
+               paste(tail(unique_vals, 2), collapse=", "))
+      } else {
+        paste(unique_vals, collapse=", ")
+      }
+      cat("  ", crayon::white("•"), " ", var, ": ",
+          crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
+    }
+  }
+
+  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
+  invisible(x)
+}
+</file>
+
+<file path="R/all_generic.R">
+#' Create an Observation Object
+#'
+#' @description
+#' Constructs a new lazy-evaluated observation object from various data sources.
+#' An observation represents a single row, element, or vector from a data source
+#' that can be accessed on demand.
+#'
+#' @param x The data source (matrix, list, vector, or other supported object)
+#' @param i The index of the observation to extract
+#'
+#' @return A function that, when called, returns the specified observation from the data source
+#'
+#' @examples
+#' # From a matrix
+#' X <- matrix(1:20, 5, 4)
+#' obs1 <- observation(X, 2)  # Create observation for row 2
+#' obs1()  # Retrieve the observation (returns row 2 as a 1xn matrix)
+#'
+#' # From a list
+#' X_list <- list(a=1:5, b=6:10, c=11:15)
+#' obs2 <- observation(X_list, 3)  # Create observation for 3rd element
+#' obs2()  # Retrieve the observation (returns the 3rd element: 11:15)
+#'
+#' @seealso [multiframe()], [obs_group()]
+#' @export
+observation <- function(x, i) UseMethod("observation")
+
+
+
+#' Create a Multidesign Object
+#'
+#' @description
+#' Constructs a new multivariate design object linking vector-valued observations with
+#' design variables. A multidesign object maintains the relationship between experimental
+#' data (observations) and metadata about experimental conditions (design variables).
+#'
+#' @details
+#' A multidesign object consists of three main components:
+#' * A data matrix where rows represent observations and columns represent variables
+#' * A design data frame containing experimental factors and conditions for each observation
+#' * Optional column metadata describing properties of each variable
+#'
+#' @param x The multivariate data (a matrix, a list, or other data container)
+#' @param y A design matrix or data frame with same number of rows/elements as x
+#' @param ... Additional arguments passed to methods, such as column_design
+#'
+#' @return A multidesign object with components:
+#'   \item{x}{The input data matrix}
+#'   \item{design}{A tibble containing design variables}
+#'   \item{column_design}{A tibble containing column metadata (if provided)}
+#'
+#' @examples
+#' # Create example data matrix
+#' X <- matrix(rnorm(20*100), 20, 100)
+#' 
+#' # Create design information
+#' Y <- tibble(condition=rep(letters[1:5], 4))
+#' 
+#' # Create multidesign object
+#' mds <- multidesign(X, Y)
+#' 
+#' # Split by condition
+#' sdes <- split(mds, condition)
+#'
+#' @seealso 
+#'   \code{\link{reduce.multidesign}} for dimensionality reduction,
+#'   \code{\link{split.multidesign}} for splitting by design variables,
+#'   \code{\link{multiframe}} for an alternative implementation
+#' @export
+multidesign <- function(x, y, ...) UseMethod("multidesign")
+
+#' Create a Hyperdesign Object
+#'
+#' @description
+#' Constructs a new `hyperdesign` object that encapsulates a collection of `multidesign` objects.
+#' Used to model multi-group, multi-block, or multi-view datasets, where each block/group/view
+#' is associated with a matrix-variate response and an arbitrary design.
+#'
+#' @details
+#' A hyperdesign object represents a collection of related multivariate datasets (multidesign instances)
+#' that share common design variables. This structure is particularly useful for:
+#' * Multiple subjects in an experiment
+#' * Multiple sessions or runs
+#' * Multiple data modalities (e.g., fMRI, EEG, behavioral)
+#' * Multiple response measures
+#'
+#' @param x A list of multidesign objects. Each instance should represent a related block of data
+#' @param ... Additional arguments passed to methods, such as block_names for naming each block
+#'
+#' @return A hyperdesign object with the following components:
+#'   \item{blocks}{List of multidesign objects}
+#'   \item{block_names}{Names of each block}
+#'   \item{col_indices}{Matrix of column start/end indices for each block}
+#'   \item{row_indices}{Matrix of row start/end indices for each block}
+#'
+#' @examples
+#' # Create three multidesign objects (e.g., for three subjects)
+#' d1 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=1, run=rep(1:5, 2))
+#' )
+#' d2 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+#' )
+#' d3 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=3, run=rep(1:5, 2))
+#' )
+#'
+#' # Combine into a hyperdesign
+#' hd <- hyperdesign(
+#'   list(d1, d2, d3),
+#'   block_names = c("subject1", "subject2", "subject3")
+#' )
+#'
+#' @seealso 
+#'   \code{\link{df_to_hyperdesign}} for creating hyperdesign objects from data frames,
+#'   \code{\link{multidesign}} for the underlying multidesign structure,
+#'   \code{\link{multiblock}} for another multi-block data structure
+#' @export
+hyperdesign <- function(x, ...) UseMethod("hyperdesign")
+
+
+
+#' Create a Multiframe Object
+#'
+#' @description
+#' Constructs a new multivariate design object linking vector-valued observations with
+#' arbitrary design variables. A multiframe combines experimental design metadata with 
+#' lazy-evaluated observations, providing a flexible interface for data manipulation.
+#'
+#' @details
+#' A multiframe object is similar to a multidesign but with enhanced support for data frame 
+#' operations. Key features include:
+#' * Lazy evaluation of observations (only loaded when needed)
+#' * Integration with tidyverse functions for data manipulation
+#' * Support for various data sources (matrices, lists, vectors)
+#' * Methods for splitting, summarizing, and transforming data
+#'
+#' @param x The multivariate data (a matrix, list, or other data container)
+#' @param y A design matrix or data frame with same number of rows/elements as x
+#' @param ... Additional arguments passed to methods
+#'
+#' @return A multiframe object containing:
+#'   \item{design}{A tibble with design variables and observation functions}
+#'
+#' @examples
+#' # Create sample data
+#' X <- matrix(rnorm(20*100), 20, 100)
+#' Y <- tibble(condition = rep(letters[1:5], 4))
+#'
+#' # Create multiframe object
+#' mf <- multiframe(X, Y)
+#' 
+#' # Access first observation
+#' obs1 <- mf$design$.obs[[1]]()
+#' 
+#' # Split by condition
+#' split_by_cond <- split(mf, condition)
+#' 
+#' # Summarize by condition
+#' means_by_cond <- summarize_by(mf, condition)
+#'
+#' @seealso 
+#'   \code{\link{multidesign}} for an alternative implementation,
+#'   \code{\link{observation}} for the underlying observation structure,
+#'   \code{\link{obs_group}} for creating groups of observations
+#' @export
+multiframe <- function(x, y, ...) UseMethod("multiframe")
+
+
+
+
+#' Create a Multiblock Object
+#'
+#' @description
+#' Constructs a new multiblock object consisting of a set of stacked submatrices sharing
+#' a row or column dimension. This structure is useful for analyzing data with multiple
+#' related blocks of measurements while preserving block structure information.
+#'
+#' @details
+#' A multiblock object automatically determines whether matrices should be:
+#' * Row-stacked: all matrices must have the same number of columns
+#' * Column-stacked: all matrices must have the same number of rows
+#'
+#' The resulting object maintains block structure information while allowing operations
+#' across the entire combined matrix.
+#'
+#' @param x A list of matrices sharing either row or column dimensions
+#' @param ... Additional arguments passed to methods
+#'
+#' @return A multiblock object with the following attributes:
+#'   \item{ind}{Matrix of start/end indices for each block}
+#'   \item{orient}{Orientation of stacking ("cstacked" or "rstacked")}
+#'
+#' @examples
+#' # Create list of matrices with varying row dimensions (column-stacked)
+#' X1 <- matrix(rnorm(20*3), 20, 3)
+#' X2 <- matrix(rnorm(20*5), 20, 5)
+#' X3 <- matrix(rnorm(20*4), 20, 4)
+#' mb_c <- multiblock(list(X1, X2, X3))
+#' is_cstacked(mb_c)  # TRUE
+#'
+#' # Create list of matrices with varying column dimensions (row-stacked)
+#' Y1 <- matrix(rnorm(10*5), 10, 5)
+#' Y2 <- matrix(rnorm(15*5), 15, 5)
+#' Y3 <- matrix(rnorm(20*5), 20, 5)
+#' mb_r <- multiblock(list(Y1, Y2, Y3))
+#' is_rstacked(mb_r)  # TRUE
+#'
+#' @seealso 
+#'   \code{\link{is_cstacked}} for checking if a multiblock object is column-stacked,
+#'   \code{\link{is_rstacked}} for checking if a multiblock object is row-stacked,
+#'   \code{\link{block_indices}} for accessing block-specific indices
+#' @export
+multiblock <- function(x, ...) UseMethod("multiblock")
+
+
+#' Test if Multiblock Object is Column Stacked
+#'
+#' @description
+#' Checks if a multiblock object is column-stacked, meaning that all component matrices
+#' share the same number of rows. In column-stacked multiblock objects, blocks are arranged
+#' side by side, with each block potentially having a different number of columns.
+#'
+#' @param x The multiblock object to test
+#' @return Logical value: TRUE if the object is column-stacked, FALSE otherwise
+#'
+#' @examples
+#' # Create column-stacked multiblock (matrices share row dimension)
+#' X1 <- matrix(rnorm(20*3), 20, 3)
+#' X2 <- matrix(rnorm(20*5), 20, 5)
+#' mb <- multiblock(list(X1, X2))
+#' 
+#' # Test stacking orientation
+#' is_cstacked(mb)  # Returns TRUE
+#' is_rstacked(mb)  # Returns FALSE
+#'
+#' @seealso 
+#'   \code{\link{is_rstacked}} for testing if a multiblock object is row-stacked,
+#'   \code{\link{multiblock}} for creating multiblock objects
+#' @export
+is_cstacked <- function(x) UseMethod("is_cstacked")
+
+
+#' Test if Multiblock Object is Row Stacked
+#'
+#' @description
+#' Checks if a multiblock object is row-stacked, meaning that all component matrices
+#' share the same number of columns. In row-stacked multiblock objects, blocks are arranged
+#' one above another, with each block potentially having a different number of rows.
+#'
+#' @param x The multiblock object to test
+#' @return Logical value: TRUE if the object is row-stacked, FALSE otherwise
+#'
+#' @examples
+#' # Create row-stacked multiblock (matrices share column dimension)
+#' Y1 <- matrix(rnorm(10*5), 10, 5)
+#' Y2 <- matrix(rnorm(15*5), 15, 5)
+#' mb <- multiblock(list(Y1, Y2))
+#' 
+#' # Test stacking orientation
+#' is_rstacked(mb)  # Returns TRUE
+#' is_cstacked(mb)  # Returns FALSE
+#'
+#' @seealso 
+#'   \code{\link{is_cstacked}} for testing if a multiblock object is column-stacked,
+#'   \code{\link{multiblock}} for creating multiblock objects
+#' @export
+is_rstacked <- function(x) UseMethod("is_rstacked")
+
+
+#' Summarize Data Over Grouping Variables
+#'
+#' @description
+#' Applies a multivariate columnwise summary function (e.g., `colMeans`) to subsets
+#' of observations formed by one or more grouping variables. This function provides
+#' a flexible way to compute group-wise statistics across different data structures.
+#'
+#' @details
+#' The function works with various data structures including:
+#' * Multidesign objects: Summarizes the data matrix by design variables
+#' * Multiframe objects: Summarizes lazy-evaluated observations by design variables
+#' * Matrices: Summarizes columns by external grouping variables
+#'
+#' For each unique combination of grouping variables, the summary function is applied
+#' to the corresponding subset of observations.
+#'
+#' @param x The multivariate data (a matrix, multidesign, multiframe, or other data container)
+#' @param sfun The columnwise summary function (e.g., `colMeans`, `colSums`, etc.)
+#' @param ... Unquoted names of variables to group by, or for matrices, the grouping variables
+#' @param extract_data Logical; if TRUE, returns just the summarized data (default: FALSE)
+#'
+#' @return For multidesign/multiframe objects: a new object of the same class with summarized data.
+#'         For matrices: a matrix of summary statistics for each group.
+#'
+#' @examples
+#' X <- matrix(rnorm(100*10), 100, 10)
+#' groups <- rep(letters[1:5], each=20)
+#' group_means <- summarize_by(X, colMeans, groups)
+#'
+#' # With a multidesign object
+#' mds <- multidesign(X, data.frame(group=groups))
+#' mds_means <- summarize_by(mds, group)
+#'
+#' # With a multiframe object
+#' mf <- multiframe(X, data.frame(group=groups))
+#' mf_means <- summarize_by(mf, group)
+#'
+#' @seealso 
+#'   \code{\link{multidesign}} for creating multidesign objects,
+#'   \code{\link{multiframe}} for creating multiframe objects,
+#'   \code{\link{split}} for splitting data by grouping variables
+#' @export
+summarize_by <- function(x, sfun, ...) UseMethod("summarize_by")
+
+
+#' Generate Cross-validation Folds
+#'
+#' @description
+#' Creates cross-validation folds by splitting data based on specified design variables
+#' or stratification factors. This function helps in creating stratified cross-validation
+#' splits while respecting the structure of the data, particularly for complex experimental
+#' designs.
+#'
+#' @details
+#' The function creates folds by splitting the data based on unique combinations of the specified
+#' variables. For each fold, one combination is held out as the assessment set (test set), 
+#' while the rest form the analysis set (training set).
+#'
+#' Different behaviors are implemented for different object types:
+#' * For multidesign objects: Creates folds based on design variables
+#' * For hyperdesign objects: Creates folds across blocks, respecting block structure
+#' * For matrices: Creates folds based on external stratification variables
+#'
+#' @param x The dataset to fold over (multidesign, hyperdesign, matrix, etc.)
+#' @param ... Additional arguments passed to methods:
+#'   * For multidesign/hyperdesign: unquoted names of variables to split on
+#'   * For matrices: nfolds (number of folds), stratum (stratification variable)
+#'
+#' @return A foldlist object containing:
+#'   \item{analysis}{Training data for each fold}
+#'   \item{assessment}{Test data for each fold}
+#'   \item{held_out}{Information about which values were held out in each fold}
+#'
+#' @examples
+#' # Basic example with matrix data
+#' X <- matrix(rnorm(100*10), 100, 10)
+#' groups <- rep(1:2, each=50)
+#' folds <- fold_over(X, nfolds=5, stratum=groups)
+#'
+#' # With a multidesign object
+#' mds <- multidesign(X, data.frame(group=groups, subject=rep(1:10, each=10)))
+#' folds_by_group <- fold_over(mds, group)
+#'
+#' # With a hyperdesign object (multiple subjects)
+#' d1 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                  data.frame(condition=rep(c("A","B"), 5), run=1:10))
+#' d2 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                  data.frame(condition=rep(c("A","B"), 5), run=1:10))
+#' hd <- hyperdesign(list(d1, d2), block_names=c("subject1", "subject2"))
+#' folds_by_condition <- fold_over(hd, condition)
+#'
+#' @seealso 
+#'   \code{\link{multidesign}} for creating multidesign objects,
+#'   \code{\link{hyperdesign}} for creating hyperdesign objects,
+#'   \code{\link{split_indices}} for splitting indices without creating folds
+#' @export
+fold_over <- function(x, ...) UseMethod("fold_over")
+
+#' Extract Data Matrix
+#'
+#' @description
+#' Retrieves the data matrix component from various object types in the package.
+#' This function provides a consistent interface for accessing the underlying data
+#' regardless of the specific object structure.
+#'
+#' @details
+#' The function behaves differently depending on the class of the input object:
+#' * For multidesign objects: Returns the data matrix component
+#' * For hyperdesign objects: Returns a list of data matrices, one for each block
+#'   (or a single matrix if a specific block is requested)
+#' * For multiframe objects: Returns the combined data from all observations
+#'
+#' @param x The object containing the data matrix
+#' @param ... Additional arguments passed to methods:
+#'   * For hyperdesign objects: 'block' parameter to specify which block's data to return
+#'
+#' @return The data matrix component of the object, or a list of matrices for hyperdesign objects
+#'
+#' @examples
+#' # With a multidesign object
+#' X <- matrix(rnorm(20*10), 20, 10)
+#' Y <- data.frame(group = rep(letters[1:4], each=5))
+#' mds <- multidesign(X, Y)
+#' X_data <- xdata(mds)  # Returns the original matrix X
+#'
+#' # With a hyperdesign object
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=1))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=2))
+#' hd <- hyperdesign(list(d1, d2))
+#' all_data <- xdata(hd)  # Returns list of matrices
+#' block1_data <- xdata(hd, block=1)  # Returns just the first block's matrix
+#'
+#' @seealso 
+#'   \code{\link{design}} for extracting design information,
+#'   \code{\link{column_design}} for extracting column metadata
+#' @export
+xdata <- function(x, ...) UseMethod("xdata")
+
+#' Extract Design Information
+#'
+#' @description
+#' Retrieves the design information (experimental metadata) associated with observations
+#' in various object types. This function provides a consistent interface for accessing
+#' design variables regardless of the specific object structure.
+#'
+#' @details
+#' The function behaves differently depending on the class of the input object:
+#' * For multidesign objects: Returns the design data frame component
+#' * For hyperdesign objects: Returns a list of design data frames, one for each block
+#'   (or a single design if a specific block is requested)
+#' * For multiframe objects: Returns the design tibble with observation functions
+#'
+#' Design information typically includes experimental factors, conditions, subject IDs,
+#' or other metadata associated with each observation.
+#'
+#' @param x The object containing design information
+#' @param ... Additional arguments passed to methods:
+#'   * For hyperdesign objects: 'block' parameter to specify which block's design to return
+#'
+#' @return The design component of the object (typically a data frame or tibble),
+#'         or a list of designs for hyperdesign objects
+#'
+#' @examples
+#' # With a multidesign object
+#' X <- matrix(rnorm(20*10), 20, 10)
+#' Y <- data.frame(
+#'   condition = rep(c("A", "B"), each=10),
+#'   subject = rep(1:5, times=4)
+#' )
+#' mds <- multidesign(X, Y)
+#' design_info <- design(mds)  # Returns the original data frame Y
+#'
+#' # With a hyperdesign object
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5), 
+#'                  data.frame(condition=rep(c("A","B"), 5), subject=1))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5), 
+#'                  data.frame(condition=rep(c("A","B"), 5), subject=2))
+#' hd <- hyperdesign(list(d1, d2))
+#' all_designs <- design(hd)  # Returns list of design data frames
+#' block1_design <- design(hd, block=1)  # Returns just the first block's design
+#'
+#' @seealso 
+#'   \code{\link{xdata}} for extracting the data matrix,
+#'   \code{\link{column_design}} for extracting column metadata
+#' @export
+design <- function(x, ...) UseMethod("design")
+
+#' Extract Column Design Information
+#'
+#' @description
+#' Retrieves metadata associated with the columns (variables) of a multidesign or related object.
+#' This function is particularly useful for datasets where variables have associated metadata,
+#' such as feature names, measurement types, or other variable-specific information.
+#'
+#' @details
+#' The function behaves differently depending on the class of the input object:
+#' * For multidesign objects: Returns the column_design data frame component
+#' * For hyperdesign objects: Returns a list of column design data frames, one for each block
+#'   (or a single column design if a specific block is requested)
+#'
+#' Column design information typically includes variable names, feature types, regions of interest,
+#' or other metadata that describes the variables rather than the observations.
+#'
+#' @param x The object containing column design information
+#' @param ... Additional arguments passed to methods:
+#'   * For hyperdesign objects: 'block' parameter to specify which block's column design to return
+#'
+#' @return The column design component of the object (typically a data frame or tibble),
+#'         or a list of column designs for hyperdesign objects
+#'
+#' @examples
+#' # With a multidesign object including column metadata
+#' X <- matrix(rnorm(20*10), 20, 10)
+#' Y <- data.frame(condition = rep(c("A", "B"), each=10))
+#' col_info <- data.frame(
+#'   feature = paste0("var", 1:10),
+#'   type = rep(c("continuous", "categorical"), 5)
+#' )
+#' mds <- multidesign(X, Y, col_info)
+#' col_metadata <- column_design(mds)
+#'
+#' # With a hyperdesign object
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5), 
+#'                  data.frame(condition=rep(c("A","B"), 5)),
+#'                  data.frame(feature=paste0("var", 1:5)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5), 
+#'                  data.frame(condition=rep(c("A","B"), 5)),
+#'                  data.frame(feature=paste0("var", 1:5)))
+#' hd <- hyperdesign(list(d1, d2))
+#' all_col_designs <- column_design(hd)
+#' block1_col_design <- column_design(hd, block=1)
+#'
+#' @seealso 
+#'   \code{\link{design}} for extracting observation design information,
+#'   \code{\link{xdata}} for extracting the data matrix
+#' @export
+column_design <- function(x, ...) UseMethod("column_design")
+
+#' Split Indices by Variables
+#'
+#' @description
+#' Extracts the row indices of a dataset, split by one or more variables. This function
+#' is useful for creating grouped analyses, stratified sampling, or preparing data for
+#' cross-validation without actually duplicating the data.
+#'
+#' @details
+#' The function returns indices rather than the actual data, which is memory-efficient
+#' for large datasets. It works with various object types:
+#' * For data frames: Returns indices grouped by specified variables
+#' * For multidesign objects: Returns indices grouped by design variables
+#' * For multiframe objects: Returns indices grouped by design variables
+#'
+#' The resulting indices can be used to subset the original data or to create
+#' training/testing splits for machine learning.
+#'
+#' @param x The object to split (data frame, multidesign, multiframe, etc.)
+#' @param ... Unquoted names of variables to split by
+#' @param collapse Logical; if TRUE, returns a simplified structure (default: FALSE)
+#'
+#' @return A tibble or list containing:
+#'   \item{group variables}{The splitting variables and their values}
+#'   \item{indices}{List column of integer vectors with row indices for each group}
+#'
+#' @examples
+#' # With a data frame
+#' dat <- data.frame(
+#'   x = 1:100,
+#'   group = rep(letters[1:4], each=25),
+#'   block = rep(1:5, times=20)
+#' )
+#' 
+#' # Split by one variable
+#' indices_by_group <- split_indices(dat, group)
+#' 
+#' # Split by multiple variables
+#' indices_by_group_block <- split_indices(dat, group, block)
+#' 
+#' # Use indices to subset original data
+#' group_a_data <- dat[indices_by_group$indices[[1]], ]
+#'
+#' # With a multidesign object
+#' mds <- multidesign(matrix(rnorm(100*10), 100, 10),
+#'                   data.frame(group=rep(letters[1:4], each=25),
+#'                              block=rep(1:5, times=20)))
+#' mds_indices <- split_indices(mds, group)
+#'
+#' @seealso 
+#'   \code{\link{fold_over}} for creating cross-validation folds,
+#'   \code{\link{split}} for splitting the actual data
+#' @export
+split_indices <- function(x, ...) UseMethod("split_indices")
+
+
+#' Initialize a Transform Object
+#'
+#' @title Initialize a Transform Object
+#' @description This is a re-export of the init_transform function from the multivarious package.
+#' See \code{multivarious::init_transform} for full documentation.
+#' @name init_transform
+#' @importFrom multivarious init_transform
+#' @export
+multivarious::init_transform
+
+#' Get Block Indices
+#'
+#' Retrieve the indices that define the boundaries of blocks in a multiblock or hyperdesign object.
+#'
+#' @param x The object to get block indices from
+#' @param ... Additional arguments passed to methods
+#' @return A matrix with start and end indices for each block
+#' @export
+block_indices <- function(x, ...) UseMethod("block_indices")
+
+#' Get Block Indices
+#'
+#' @title Get Block Indices from a Multiblock Object
+#' @description This is a re-export of the block_indices function from the multivarious package.
+#' See \code{multivarious::block_indices} for full documentation.
+#' @name block_indices
+#' @importFrom multivarious block_indices
+#' @export
+multivarious::block_indices
+</file>
+
+<file path="R/hyperdesign.R">
+#' @keywords internal
+block_index_mat <- function(x, byrow=FALSE) {
+  lens <- if (byrow) {
+    sapply(x, function(z) nrow(z$x))
+  } else {
+    sapply(x, function(z) ncol(z$x))
+  }
+
+  csum <- cumsum(lens)
+  csum1 <- c(0, csum[-length(csum)])
+  m <- as.matrix(cbind(csum1+1, csum))
+  colnames(m) <- c("start", "end")
+  m
+}
+
+
+
+#' Convert a Data Frame to a Hyperdesign Object
+#'
+#' This function creates a hyperdesign object from a data frame by splitting it according to a specified variable.
+#' It's particularly useful when you have a wide-format data frame that needs to be converted into multiple
+#' related multidesign objects, such as when dealing with multiple subjects or sessions in an experiment.
+#'
+#' @importFrom dplyr select everything
+#' @importFrom dplyr arrange group_by nest_by
+#' @importFrom purrr map
+#'
+#' @param data A data frame or tibble containing both design variables and response variables
+#' @param design_vars Character vector specifying the names of design variables (e.g., conditions, factors)
+#' @param x_vars Character vector specifying the names of response variables to extract
+#' @param split_var Character string naming the variable to split the data on (e.g., "subject" or "session")
+#'
+#' @return A hyperdesign object containing multiple multidesign objects, one for each unique value in split_var
+#' @seealso
+#'   \code{\link{hyperdesign}} for creating hyperdesign objects directly from multidesign objects,
+#'   \code{\link{multidesign}} for the underlying multidesign structure,
+#'   \code{\link{design.hyperdesign}} for extracting design information
+#'
+#' @family hyperdesign functions
+#' @export
+#'
+#' @examples
+#' # Create a sample tibble with multiple subjects
+#' sample_tibble <- tibble(
+#'   felab = rep(1:2, each = 3),
+#'   attention = rep(c("DA", "FA"), times = 3),
+#'   basis = rep(c("basis01", "basis02", "basis03"), times = 2),
+#'   subject = rep(1001:1002, each = 3),
+#'   `1` = rnorm(6),  # response variable 1
+#'   `2` = rnorm(6),  # response variable 2
+#'   `3` = rnorm(6)   # response variable 3
+#' )
+#'
+#' # Convert to hyperdesign, splitting by subject
+#' hd <- df_to_hyperdesign(
+#'   data = sample_tibble,
+#'   design_vars = c("felab", "attention", "basis"),
+#'   x_vars = as.character(1:3),
+#'   split_var = "subject"
+#' )
+df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
+  # Arrange the data by the splitting variable
+  data <- data %>% arrange(!!rlang::sym(split_var))
+
+  # Create the nested dataframes
+  nested_data <- data %>%
+    group_by(!!rlang::sym(split_var)) %>%
+    nest_by()
+
+  # Convert each nested dataframe into a multidesign object
+  multidesigns <- map(nested_data$data, function(df) {
+    # Select X and design variables
+    X <- select(df, all_of(x_vars))
+    design <- select(df, all_of(design_vars))
+
+    # Create multidesign object
+    multidesign(as.matrix(X), design)
+  })
+
+  # Convert the list of multidesign objects into a hyperdesign
+  hyperdesign(multidesigns, as.character(nested_data[[1]]))
+}
+
+
+
+#' Construct a Hyperdesign Object
+#'
+#' Creates a hyperdesign object, which represents a collection of related multivariate datasets
+#' (multidesign instances) that share common design variables. This class is particularly useful
+#' for modeling multi-block data, where you want to analyze multiple related matrices, such as:
+#' * Multiple subjects in an experiment
+#' * Multiple sessions or runs
+#' * Multiple data modalities (e.g., fMRI, EEG, behavioral)
+#' * Multiple response measures
+#'
+#' @param x A list of multidesign instances. Each instance should represent a related block of data
+#' @param block_names Optional character vector of names for each block. If NULL, blocks will be
+#'   automatically named as "block_1", "block_2", etc.
+#'
+#' @return A hyperdesign object with the following components:
+#'   \item{blocks}{List of multidesign objects}
+#'   \item{block_names}{Names of each block}
+#'   \item{col_indices}{Matrix of column start/end indices for each block}
+#'   \item{row_indices}{Matrix of row start/end indices for each block}
+#'
+#' @seealso
+#'   \code{\link{df_to_hyperdesign}} for creating hyperdesign objects from data frames,
+#'   \code{\link{multidesign}} for the underlying multidesign structure,
+#'   \code{\link{design.hyperdesign}} for extracting design information
+#'
+#' @family hyperdesign functions
+#' @export
+#'
+#' @examples
+#' # Create three multidesign objects (e.g., for three subjects)
+#' d1 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=1, run=rep(1:5, 2))
+#' )
+#' d2 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+#' d3 <- multidesign(
+#'   matrix(rnorm(10*20), 10, 20),
+#'   data.frame(y=1:10, subject=3, run=rep(1:5, 2))
+#' )
+#'
+#' # Combine into a hyperdesign
+#' hd <- hyperdesign(
+#'   list(d1, d2, d3),
+#'   block_names = c("subject1", "subject2", "subject3")
+#' )
+hyperdesign <- function(x, block_names=NULL) {
+  chk::chk_true(all(sapply(x, function(d) inherits(d, "multidesign"))))
+
+  bind_col <- block_index_mat(x, byrow=FALSE)
+  bind_row <- block_index_mat(x, byrow=TRUE)
+
+  if (!is.null(block_names)) {
+    chk::chk_true(length(block_names) == length(x))
+    names(x) <- block_names
+  } else if (is.null(names(x))) {
+    block_names <- paste0("block_", 1:length(x))
+    names(x) <- block_names
+  }
+
+  hdes <- lapply(1:length(x), function(i) {
+    tibble(block=i, block_name=block_names[i],
+           nr=nrow(x[[i]]$x), nxvar=ncol(x[[i]]$x), nyvar=ncol(x[[i]]$design),
+           row_start=bind_row[i,1], row_end=bind_row[i,2],
+           col_start=bind_col[i,1], col_end=bind_col[i,2])
+  }) %>% bind_rows()
+
+  cvars <- lapply(x, function(z) names(z$design))
+  cvars <- Reduce(intersect, cvars)
+
+  structure(x,
+            hdes=hdes,
+            common_vars=cvars,
+            class="hyperdesign")
+}
+
+#' @export
+#' @param i the block number
+#' @param byrow if true, return row-oriented indices
+#' @rdname block_indices
+block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
+  hd <- attr(x, "hdes")
+
+  if (missing(i)) {
+    lapply(1:nrow(hd), function(j) {
+      if (byrow) {
+        seq(hd$row_start[j], hd$row_end[j])
+      } else {
+        seq(hd$col_start[j], hd$col_end[j])
+      }
+    })
+  } else {
+    chk::chk_range(i, c(1, nrow(hd)))
+    if (byrow) {
+      seq(hd$row_start[i], hd$row_end[i])
+    } else {
+      seq(hd$col_start[i], hd$col_end[i])
+    }
+  }
+}
+
+#' Initialize Transformation for Hyperdesign
+#'
+#' Method to initialize transformations (e.g., scaling, centering) for hyperdesign objects.
+#' Each block in the hyperdesign gets its own transformation object.
+#'
+#' @param x A hyperdesign object
+#' @param preproc A preprocessing specification (e.g., from recipes package)
+#' @return A list of initialized preprocessing objects, one for each block
+#' @family hyperdesign functions
+#' @method init_transform hyperdesign
+#' @export
+
+init_transform.hyperdesign <- function(x, preproc) {
+  ## pre-processors
+  proclist <- lapply(seq_along(x), function(i) {
+    multivarious:::fresh(preproc) %>% prep()
+  })
+
+  names(proclist) <- names(x)
+
+  ## subject-split and pre-processed data
+  out <- lapply(seq_along(proclist), function(i) {
+    p <- proclist[[i]]
+    Xi <- x[[i]]$x
+    Xout <- multivarious::init_transform(p, Xi)
+    multidesign(Xout, x[[i]]$design)
+  })
+
+  des <- hyperdesign(out)
+  attr(des, "preproc") <- proclist
+  des
+}
+
+
+#' Create Cross-Validation Folds from a Hyperdesign Object
+#'
+#' Creates cross-validation folds by splitting the data based on specified design variables.
+#' Each fold consists of a training set (analysis) and a test set (assessment).
+#'
+#' @param x A hyperdesign object
+#' @param ... Unquoted names of variables to split on (e.g., condition, subject, run)
+#' @param inclusion_condition Optional list specifying values to include in assessment sets
+#' @param exclusion_condition Optional list specifying values to exclude from assessment sets
+#'
+#' @details
+#' The function creates folds by splitting the data based on unique combinations of the specified
+#' variables. For each fold, one combination is held out as the assessment set, while the rest
+#' form the analysis set.
+#'
+#' Important considerations:
+#' * If a splitting variable is confounded with blocks (e.g., each subject is in a separate block),
+#'   the function will fail as there would be no training data available for that block.
+#' * Numeric variables (like run numbers) are handled by converting them to factors for splitting.
+#' * The function preserves the design structure within each fold.
+#'
+#' @return A foldlist object containing the cross-validation folds
+#' @export
+fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusion_condition = list()) {
+  # Get the splitting variables properly
+  dots <- rlang::enquos(...)
+  split_vars <- sapply(dots, rlang::quo_name)
+  
+  # Helper function to apply filtering conditions to design data
+  apply_conditions <- function(design_data, incl_cond, excl_cond) {
+    # Apply inclusion conditions
+    if (length(incl_cond) > 0) {
+      for (factor_name in names(incl_cond)) {
+        design_data <- design_data[design_data[[factor_name]] %in% incl_cond[[factor_name]], , drop = FALSE]
+      }
+    }
+    
+    # Apply exclusion conditions
+    if (length(excl_cond) > 0) {
+      for (factor_name in names(excl_cond)) {
+        design_data <- design_data[!design_data[[factor_name]] %in% excl_cond[[factor_name]], , drop = FALSE]
+      }
+    }
+    
+    design_data
+  }
+
+  # If no splitting variables provided, create leave-one-block-out folds
+  if (length(split_vars) == 0) {
+    # Create a fold for each block
+    extract <- function(i) {
+      # Block i is the test set
+      test_design <- x[[i]]$design
+      test_indices <- seq_len(nrow(test_design))
+
+      # Create test dataset
+      testdat <- multidesign(x[[i]]$x[test_indices, , drop = FALSE],
+                            test_design[test_indices, , drop = FALSE],
+                            x[[i]]$column_design)
+
+      # Create training dataset from all other blocks
+      traindat <- hyperdesign(x[-i])
+
+      # Get held_out values
+      held_out_values <- list(block = i)
+
+      list(analysis = traindat,
+           assessment = testdat,
+           held_out = held_out_values)
+    }
+
+    # Create foldframe for block-wise folding
+    foldframe <- tibble(
+      .block = seq_along(x),
+      indices = lapply(seq_along(x), function(i) seq_len(nrow(x[[i]]$design))),
+      .splitvar = paste0("block_", seq_along(x)),
+      .fold = seq_along(x)
+    )
+  } else {
+    # Early detection of confounded variables
+    for (var in split_vars) {
+      # Get unique values for each block
+      block_values <- lapply(seq_along(x), function(i) {
+        vals <- x[[i]]$design[[var]]
+        if (is.null(vals)) {
+          stop("Variable '", var, "' not found in design of block ", i)
+        }
+        unique(vals)
+      })
+
+      # For each block, check if it has only one unique value
+      for (i in seq_along(block_values)) {
+        curr_vals <- block_values[[i]]
+        if (length(curr_vals) == 1) {
+          # Get all values from other blocks
+          other_blocks_vals <- unique(unlist(block_values[-i]))
+
+          # Check if this value appears in any other block
+          if (!any(curr_vals %in% other_blocks_vals)) {
+            stop(
+              "Variable '", var, "' is confounded with blocks:\n",
+              "  Block ", i, " contains only value '", curr_vals, "' which doesn't appear in other blocks.\n",
+              "  This would result in no training data being available for this block.\n",
+              "  Consider using a different splitting variable or restructuring your data."
+            )
+          }
+        }
+      }
+    }
+
+    # Validate inclusion_condition if it is non-empty
+    if (length(inclusion_condition) > 0) {
+      validate_inclusion_condition <- function(x, inclusion_condition) {
+        all_design <- do.call(rbind, lapply(x, function(block) block$design))
+        for (factor_name in names(inclusion_condition)) {
+          if (!factor_name %in% colnames(all_design)) {
+            stop(paste("Factor", factor_name, "not found in the design."))
+          }
+          if (!any(inclusion_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+            stop(paste("Level", inclusion_condition[[factor_name]], "not found for factor", factor_name))
+          }
+        }
+      }
+      validate_inclusion_condition(x, inclusion_condition)
+    }
+
+    # Validate exclusion_condition if it is non-empty
+    if (length(exclusion_condition) > 0) {
+      validate_exclusion_condition <- function(x, exclusion_condition) {
+        all_design <- do.call(rbind, lapply(x, function(block) block$design))
+        for (factor_name in names(exclusion_condition)) {
+          if (!factor_name %in% colnames(all_design)) {
+            stop(paste("Factor", factor_name, "not found in the design."))
+          }
+          if (!any(exclusion_condition[[factor_name]] %in% unique(all_design[[factor_name]]))) {
+            stop(paste("Level", exclusion_condition[[factor_name]], "not found for factor", factor_name))
+          }
+        }
+      }
+      validate_exclusion_condition(x, exclusion_condition)
+    }
+
+    # For variable-based folding
+    splits <- lapply(seq_along(x), function(i) {
+      d <- x[[i]]
+      split_indices(d, ...) %>% mutate(.block = i)
+    })
+    
+    foldframe <- splits %>% bind_rows() %>% mutate(.fold = 1:n())
+  }
+
+  condition_met <- function(i) {
+    if (i > nrow(foldframe)) return(FALSE)
+
+    block <- foldframe[[".block"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    # Ensure ind is numeric and valid
+    if (length(ind) == 0) return(FALSE)
+
+    # Convert indices to numeric if they're stored as character/factor
+    ind <- as.integer(as.character(ind))
+    if (any(is.na(ind))) return(FALSE)
+
+    # Get the test design data
+    test_design <- x[[block]]$design[ind, , drop = FALSE]
+    if (nrow(test_design) == 0) return(FALSE)
+
+    # Apply filtering conditions
+    filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
+    
+    # Check if there are any remaining rows after filtering
+    if (nrow(filtered_test) == 0) return(FALSE)
+    
+    # Also check that the training set won't be empty
+    filtered_test_indices <- as.integer(rownames(filtered_test))
+    if (length(filtered_test_indices) == nrow(x[[block]]$design)) {
+      return(FALSE)  # Would create empty training set
+    }
+    
+    TRUE
+  }
+
+  indices <- which(sapply(seq_len(nrow(foldframe)), condition_met))
+
+  if (length(indices) == 0) {
+    stop("No valid folds created. Check inclusion and exclusion conditions.")
+  }
+
+  extract <- function(i) {
+    block <- foldframe[[".block"]][i]
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    # Convert indices to numeric if they're stored as character/factor
+    ind <- as.integer(as.character(ind))
+
+    test_design <- x[[block]]$design[ind, , drop = FALSE]
+
+    # Apply filtering conditions
+    filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
+    
+    test_indices <- as.integer(rownames(filtered_test))
+    testdat <- multidesign(x[[block]]$x[test_indices, , drop = FALSE],
+                          filtered_test,
+                          x[[block]]$column_design)
+
+    traindat <- hyperdesign(lapply(seq_along(x), function(j) {
+      if (j == block) {
+        if (length(test_indices) == nrow(x[[j]]$x)) {
+          stop("Block ", j, " contains only data for the assessment set.\n",
+               "This typically happens when a splitting variable is confounded with blocks.\n",
+               "Consider using a different splitting variable or restructuring your data.")
+        }
+        multidesign(x[[block]]$x[-test_indices, , drop = FALSE],
+                   x[[block]]$design[-test_indices, , drop = FALSE],
+                   x[[block]]$column_design)
+      } else {
+        x[[j]]
+      }
+    }))
+
+    # Get held_out values from the filtered test_design
+    held_out_values <- filtered_test %>%
+      distinct() %>%
+      slice(1) %>%
+      as.list()
+
+    list(analysis = traindat,
+         assessment = testdat,
+         held_out = held_out_values)
+  }
+
+  ret <- deflist(function(i) extract(indices[i]), len = length(indices))
+
+  names(ret) <- paste0("fold_", seq_along(ret))
+  class(ret) <- c("foldlist", class(ret))
+  attr(ret, "foldframe") <- foldframe
+  ret
+}
+
+
+#' Extract Design Information from Hyperdesign
+#'
+#' Retrieves design information from a hyperdesign object, either for all blocks
+#' or for a specific block.
+#'
+#' @param x A hyperdesign object
+#' @param block Optional numeric index specifying which block's design to return
+#' @return If block is specified, returns design for that block; otherwise returns
+#'         a list of designs for all blocks
+#' @family hyperdesign functions
+#' @method design hyperdesign
+#' @export
+#' @examples
+#' d1 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(y=1:10, condition=rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(y=1:10, condition=rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2))
+#'
+#' # Get all designs
+#' all_designs <- design(hd)
+#'
+#' # Get design for block 1
+#' block1_design <- design(hd, block=1)
+design.hyperdesign <- function(x, block) {
+  if (missing(block)) {
+    lapply(x, design)
+  } else {
+    chk::vld_number(block)
+    chk::chk_range(block, c(1, length(x)))
+    design(x[[block]])
+  }
+}
+
+
+
+#' Extract Data Matrix from Hyperdesign
+#'
+#' Get the data matrix component from a hyperdesign object, either for all blocks
+#' or for a specific block.
+#'
+#' @param x A hyperdesign object
+#' @param block Optional numeric index specifying which block's data to return
+#' @return If block is specified, returns data matrix for that block; otherwise returns
+#'         a list of data matrices for all blocks
+#' @family hyperdesign functions
+#' @seealso [design.hyperdesign()], [column_design.hyperdesign()]
+#' @method xdata hyperdesign
+#' @export
+#' @examples
+#' # Create example hyperdesign
+#' d1 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(y=1:10, condition=rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(y=1:10, condition=rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2))
+#'
+#' # Get data from all blocks
+#' all_data <- xdata(hd)
+#'
+#' # Get data from block 1
+#' block1_data <- xdata(hd, block=1)
+xdata.hyperdesign <- function(x, block) {
+  if (missing(block)) {
+    lapply(x, xdata)
+  } else {
+    chk::vld_number(block)
+    chk::chk_range(block, c(1, length(x)))
+    xdata(x[[block]])
+  }
+}
+
+#' Get Column Design Information for Hyperdesign
+#'
+#' Extract column design information from a hyperdesign object.
+#'
+#' @param x A hyperdesign object
+#' @param block Optional block index or name to get design for specific block
+#' @param ... Additional arguments passed to methods
+#' @return A list of column design information for each bloc
+#' @export
+column_design.hyperdesign <- function(x, block, ...) {
+  if (missing(block)) {
+    lapply(x, column_design)
+  } else {
+    chk::vld_number(block)
+    chk::chk_range(block, c(1, length(x)))
+    column_design(x[[block]])
+  }
+}
+
+#' Subset a Hyperdesign Object
+#'
+#' Create a new hyperdesign object containing only the specified blocks.
+#'
+#' @param x A hyperdesign object
+#' @param subset Logical vector indicating which blocks to keep
+#' @param ... Additional arguments (not used)
+#' @return A new hyperdesign object containing only the selected blocks
+#' @family hyperdesign functions
+#' @method subset hyperdesign
+#' @export
+#' @examples
+#' # Create example hyperdesign
+#' d1 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(subject=1, condition=rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(subject=2, condition=rep(c("A","B"), 5)))
+#' d3 <- multidesign(matrix(rnorm(10*20), 10, 20),
+#'                   data.frame(subject=3, condition=rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2, d3))
+#'
+#' # Keep only blocks 1 and 3
+#' subset_hd <- subset(hd, c(TRUE, FALSE, TRUE))
+subset.hyperdesign <- function(x, fexpr) {
+  out <- lapply(x, function(d) {
+    subset(d, !!rlang::enquo(fexpr))
+  })
+
+  rem <- unlist(purrr::map(out, is.null))
+  if (sum(rem) == length(x)) {
+    stop("subset expression does not match any rows in hyperdesign `x`")
+  }
+
+  onam <- names(x)[!rem]
+  hyperdesign(out[!rem], onam)
+}
+
+#' Print Method for Hyperdesign Objects
+#'
+#' Displays a detailed summary of a hyperdesign object, including information about each block's
+#' structure, design variables, and dimensions.
+#'
+#' @param x A hyperdesign object
+#' @param ... Additional arguments passed to print methods
+#' @return Invisibly returns the input object
+#' @method print hyperdesign
+#' @export
+print.hyperdesign <- function(x, ...) {
+  # Header
+  cat(bold(blue("\n═══ Hyperdesign Object ═══\n")))
+
+  # Number of blocks
+  cat(bold("\nNumber of blocks: "), green(length(x)), "\n")
+
+  # Block details
+  for (i in seq_along(x)) {
+    block_name <- names(x)[i]
+    block <- x[[i]]
+
+    # Block header
+    cat(bold(blue("\n┌─ Block ")), bold(blue(i)),
+        if (!is.null(block_name)) bold(blue(paste0(" (", block_name, ")"))) else "",
+        bold(blue(" ─────────────────\n")))
+
+    # Data dimensions
+    cat("│ ", bold("Dimensions:"),
+        green(paste0(nrow(block$x), " × ", ncol(block$x))), "\n")
+
+    # Design variables
+    design_vars <- names(block$design)
+    cat("│ ", bold("Design Variables:"),
+        green(paste(design_vars, collapse=", ")), "\n")
+
+    # Sample of unique values for each design variable
+    cat("│ ", bold("Design Structure:"), "\n")
+    for (var in design_vars) {
+      unique_vals <- unique(block$design[[var]])
+      n_unique <- length(unique_vals)
+      sample_vals <- if (n_unique > 5) {
+        paste0(paste(head(unique_vals, 3), collapse=", "),
+               "...",
+               paste(tail(unique_vals, 2), collapse=", "))
+      } else {
+        paste(unique_vals, collapse=", ")
+      }
+      cat("│   ", white("•"), " ", var, ": ",
+          green(n_unique), " levels (", sample_vals, ")\n", sep="")
+    }
+
+    # Column design if present
+    if (!is.null(block$column_design)) {
+      cat("│ ", bold("Column Design:"), "Present\n")
+      col_vars <- names(block$column_design)
+      cat("│   Variables: ", green(paste(col_vars, collapse=", ")), "\n")
+    }
+  }
+
+  # Footer
+  cat(bold(blue("\n═══════════════════════\n")))
+
+  invisible(x)
+}
+
+#' Print Method for Foldlist Objects
+#'
+#' Displays a formatted summary of a foldlist object, showing fold structure and held-out information.
+#'
+#' @param x A foldlist object
+#' @param ... Additional arguments passed to print methods
+#'
+#' @method print foldlist
+#' @export
+print.foldlist <- function(x, ...) {
+  # Get fold information
+  foldframe <- attr(x, "foldframe")
+  n_folds <- length(x)
+
+  # Header
+  cat(crayon::bold(crayon::blue("\n═══ Cross-Validation Folds ═══\n")))
+
+  # Basic information
+  cat("\n", crayon::green(paste0("Number of Folds: ", n_folds)), "\n")
+
+  # Print each fold's information
+  for (i in seq_len(n_folds)) {
+    cat(crayon::bold(paste0("\nFold ", i, ":")), "\n")
+
+    # Get fold details
+    fold_info <- x[[i]]
+
+    # Analysis set information
+    analysis_size <- nrow(fold_info$analysis[[1]]$design)
+    cat("  ", crayon::white("•"), " Analysis Set: ",
+        crayon::green(analysis_size), " observations\n", sep="")
+
+    # Assessment set information
+    assessment_size <- nrow(fold_info$assessment$design)
+    cat("  ", crayon::white("•"), " Assessment Set: ",
+        crayon::green(assessment_size), " observations\n", sep="")
+
+    # Held out information if available
+    if (!is.null(fold_info$held_out)) {
+      cat(crayon::bold("  Held Out Values:"), "\n")
+      for (var in names(fold_info$held_out)) {
+        val <- fold_info$held_out[[var]]
+        cat("    ", crayon::white("◦"), " ", var, ": ",
+            crayon::yellow(paste(val, collapse=", ")), "\n", sep="")
+      }
+    }
+  }
+
+  # Footer
+  cat(crayon::bold(crayon::blue("\n═════════════════════════════\n")))
+  invisible(x)
+}
+</file>
+
+</files>

@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^codecov\.yml$
+^README\.Rmd$
+ .aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v3
+cran-comments.md

@@ -2,21 +2,51 @@
 % Please edit documentation in R/all_generic.R
 \name{multiblock}
 \alias{multiblock}
-\title{create an multiblock object}
+\title{Create a Multiblock Object}
 \usage{
 multiblock(x, ...)
 }
 \arguments{
-\item{x}{the matrix data}
+\item{x}{A list of matrices sharing either row or column dimensions}
 
-\item{...}{extra args}
-
-\item{design}{design matrix for the shared dimension}
+\item{...}{Additional arguments passed to methods}
+}
+\value{
+A multiblock object with the following attributes:
+  \item{ind}{Matrix of start/end indices for each block}
+  \item{orient}{Orientation of stacking ("cstacked" or "rstacked")}
 }
 \description{
-construct a new multiblock matrix consisting of a set of stacked submatrices sharing a row- or column dimension.
+Constructs a new multiblock object consisting of a set of stacked submatrices sharing
+a row or column dimension. This structure is useful for analyzing data with multiple
+related blocks of measurements while preserving block structure information.
+}
+\details{
+A multiblock object automatically determines whether matrices should be:
+* Row-stacked: all matrices must have the same number of columns
+* Column-stacked: all matrices must have the same number of rows
+
+The resulting object maintains block structure information while allowing operations
+across the entire combined matrix.
 }
 \examples{
-X <- lapply(c(10,20,30), function(i) matrix(rnorm(i*100), i, 100))
-mb <- multiblock(X)
+# Create list of matrices with varying row dimensions (column-stacked)
+X1 <- matrix(rnorm(20*3), 20, 3)
+X2 <- matrix(rnorm(20*5), 20, 5)
+X3 <- matrix(rnorm(20*4), 20, 4)
+mb_c <- multiblock(list(X1, X2, X3))
+is_cstacked(mb_c)  # TRUE
+
+# Create list of matrices with varying column dimensions (row-stacked)
+Y1 <- matrix(rnorm(10*5), 10, 5)
+Y2 <- matrix(rnorm(15*5), 15, 5)
+Y3 <- matrix(rnorm(20*5), 20, 5)
+mb_r <- multiblock(list(Y1, Y2, Y3))
+is_rstacked(mb_r)  # TRUE
+
+}
+\seealso{
+\code{\link{is_cstacked}} for checking if a multiblock object is column-stacked,
+  \code{\link{is_rstacked}} for checking if a multiblock object is row-stacked,
+  \code{\link{block_indices}} for accessing block-specific indices
 }

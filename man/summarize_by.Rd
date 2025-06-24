@@ -2,18 +2,51 @@
 % Please edit documentation in R/all_generic.R
 \name{summarize_by}
 \alias{summarize_by}
-\title{summarize data over grouping variable(s)}
+\title{Summarize Data Over Grouping Variables}
 \usage{
 summarize_by(x, sfun, ...)
 }
 \arguments{
-\item{x}{the multivariate data (a matrix, a list, or other data container)}
+\item{x}{The multivariate data (a matrix, multidesign, multiframe, or other data container)}
 
-\item{sfun}{the columnwise summary function (e.g. `colMeans`)}
+\item{sfun}{The columnwise summary function (e.g., `colMeans`, `colSums`, etc.)}
 
-\item{...}{the grouping variables}
+\item{...}{Unquoted names of variables to group by, or for matrices, the grouping variables}
+}
+\value{
+For multidesign/multiframe objects: a new object of the same class with summarized data.
+        For matrices: a matrix of summary statistics for each group.
 }
 \description{
-apply a mutlivariate columnwise summary function (e.g. `colMeans`) to subsets
-of observations formed by one or more grouping variables.
+Applies a multivariate columnwise summary function (e.g., `colMeans`) to subsets
+of observations formed by one or more grouping variables. This function provides
+a flexible way to compute group-wise statistics across different data structures.
+}
+\details{
+The function works with various data structures including:
+* Multidesign objects: Summarizes the data matrix by design variables
+* Multiframe objects: Summarizes lazy-evaluated observations by design variables
+* Matrices: Summarizes columns by external grouping variables
+
+For each unique combination of grouping variables, the summary function is applied
+to the corresponding subset of observations.
+}
+\examples{
+X <- matrix(rnorm(100*10), 100, 10)
+groups <- rep(letters[1:5], each=20)
+group_means <- summarize_by(X, colMeans, groups)
+
+# With a multidesign object
+mds <- multidesign(X, data.frame(group=groups))
+mds_means <- summarize_by(mds, group)
+
+# With a multiframe object
+mf <- multiframe(X, data.frame(group=groups))
+mf_means <- summarize_by(mf, group)
+
+}
+\seealso{
+\code{\link{multidesign}} for creating multidesign objects,
+  \code{\link{multiframe}} for creating multiframe objects,
+  \code{\link{split}} for splitting data by grouping variables
 }

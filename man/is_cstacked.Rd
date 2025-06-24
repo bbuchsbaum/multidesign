@@ -2,13 +2,33 @@
 % Please edit documentation in R/all_generic.R
 \name{is_cstacked}
 \alias{is_cstacked}
-\title{test whether `multiblock` object is column stacked}
+\title{Test if Multiblock Object is Column Stacked}
 \usage{
 is_cstacked(x)
 }
 \arguments{
-\item{x}{the object}
+\item{x}{The multiblock object to test}
+}
+\value{
+Logical value: TRUE if the object is column-stacked, FALSE otherwise
 }
 \description{
-test whether `multiblock` object is column stacked
+Checks if a multiblock object is column-stacked, meaning that all component matrices
+share the same number of rows. In column-stacked multiblock objects, blocks are arranged
+side by side, with each block potentially having a different number of columns.
+}
+\examples{
+# Create column-stacked multiblock (matrices share row dimension)
+X1 <- matrix(rnorm(20*3), 20, 3)
+X2 <- matrix(rnorm(20*5), 20, 5)
+mb <- multiblock(list(X1, X2))
+
+# Test stacking orientation
+is_cstacked(mb)  # Returns TRUE
+is_rstacked(mb)  # Returns FALSE
+
+}
+\seealso{
+\code{\link{is_rstacked}} for testing if a multiblock object is row-stacked,
+  \code{\link{multiblock}} for creating multiblock objects
 }

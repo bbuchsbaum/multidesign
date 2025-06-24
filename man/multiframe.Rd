@@ -2,25 +2,54 @@
 % Please edit documentation in R/all_generic.R
 \name{multiframe}
 \alias{multiframe}
-\title{create an multiframe object}
+\title{Create a Multiframe Object}
 \usage{
 multiframe(x, y, ...)
 }
 \arguments{
-\item{x}{the multivariate data (a matrix, a list, or other data container)}
+\item{x}{The multivariate data (a matrix, list, or other data container)}
 
-\item{y}{a design matrix with same number of rows/elements as x}
+\item{y}{A design matrix or data frame with same number of rows/elements as x}
 
-\item{...}{extra args}
+\item{...}{Additional arguments passed to methods}
+}
+\value{
+A multiframe object containing:
+  \item{design}{A tibble with design variables and observation functions}
 }
 \description{
-construct a new multivariate design object linking vector-valued observation and arbitrary design variables
+Constructs a new multivariate design object linking vector-valued observations with
+arbitrary design variables. A multiframe combines experimental design metadata with 
+lazy-evaluated observations, providing a flexible interface for data manipulation.
+}
+\details{
+A multiframe object is similar to a multidesign but with enhanced support for data frame 
+operations. Key features include:
+* Lazy evaluation of observations (only loaded when needed)
+* Integration with tidyverse functions for data manipulation
+* Support for various data sources (matrices, lists, vectors)
+* Methods for splitting, summarizing, and transforming data
 }
 \examples{
-
+# Create sample data
 X <- matrix(rnorm(20*100), 20, 100)
-Y <- tibble(condition=rep(letters[1:5], 4))
+Y <- tibble(condition = rep(letters[1:5], 4))
 
-mds <- multidesign(X,Y)
-sdes <- split(mds, condition)
+# Create multiframe object
+mf <- multiframe(X, Y)
+
+# Access first observation
+obs1 <- mf$design$.obs[[1]]()
+
+# Split by condition
+split_by_cond <- split(mf, condition)
+
+# Summarize by condition
+means_by_cond <- summarize_by(mf, condition)
+
+}
+\seealso{
+\code{\link{multidesign}} for an alternative implementation,
+  \code{\link{observation}} for the underlying observation structure,
+  \code{\link{obs_group}} for creating groups of observations
 }

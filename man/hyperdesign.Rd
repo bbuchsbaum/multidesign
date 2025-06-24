@@ -2,31 +2,106 @@
 % Please edit documentation in R/all_generic.R, R/hyperdesign.R
 \name{hyperdesign}
 \alias{hyperdesign}
-\title{create a hyperdesign}
+\title{Create a Hyperdesign Object}
 \usage{
 hyperdesign(x, block_names = NULL)
 
 hyperdesign(x, block_names = NULL)
 }
 \arguments{
-\item{x}{a list of `multidesign` instances}
+\item{x}{A list of multidesign instances. Each instance should represent a related block of data}
 
-\item{block_names}{the names of each block}
+\item{block_names}{Optional character vector of names for each block. If NULL, blocks will be
+automatically named as "block_1", "block_2", etc.}
+}
+\value{
+A hyperdesign object with the following components:
+  \item{blocks}{List of multidesign objects}
+  \item{block_names}{Names of each block}
+  \item{col_indices}{Matrix of column start/end indices for each block}
+  \item{row_indices}{Matrix of row start/end indices for each block}
 
-\item{...}{extra args}
+A hyperdesign object with the following components:
+  \item{blocks}{List of multidesign objects}
+  \item{block_names}{Names of each block}
+  \item{col_indices}{Matrix of column start/end indices for each block}
+  \item{row_indices}{Matrix of row start/end indices for each block}
 }
 \description{
-construct a new `hyperdesign` object. A `hyperdesign` encapusulates a collection of `multidesign` objeects.
-It is used to model multigroup, muliblock, or multiview datasets, here each block/group/view is
-associated with a matrix-variate response and an arbitrary design.
+Constructs a new `hyperdesign` object that encapsulates a collection of `multidesign` objects.
+Used to model multi-group, multi-block, or multi-view datasets, where each block/group/view
+is associated with a matrix-variate response and an arbitrary design.
 
-A collection of multivariate datasets (`multidesign` instances) that share a set of common design variables.
-The class can be used to capture multiblock data, where one wants to model multiple related matrices.
+Creates a hyperdesign object, which represents a collection of related multivariate datasets
+(multidesign instances) that share common design variables. This class is particularly useful
+for modeling multi-block data, where you want to analyze multiple related matrices, such as:
+* Multiple subjects in an experiment
+* Multiple sessions or runs
+* Multiple data modalities (e.g., fMRI, EEG, behavioral)
+* Multiple response measures
+}
+\details{
+A hyperdesign object represents a collection of related multivariate datasets (multidesign instances)
+that share common design variables. This structure is particularly useful for:
+* Multiple subjects in an experiment
+* Multiple sessions or runs
+* Multiple data modalities (e.g., fMRI, EEG, behavioral)
+* Multiple response measures
 }
 \examples{
-d1 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=1, run=rep(1:5, 2)))
-d2 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=2, run=rep(1:5, 2)))
-d3 <- multidesign(matrix(rnorm(10*20), 10, 20), data.frame(y=1:10, subject=3, run=rep(1:5, 2)))
+# Create three multidesign objects (e.g., for three subjects)
+d1 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=1, run=rep(1:5, 2))
+)
+d2 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+)
+d3 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=3, run=rep(1:5, 2))
+)
 
-hd <- hyperdesign(list(d1,d2,d3))
+# Combine into a hyperdesign
+hd <- hyperdesign(
+  list(d1, d2, d3),
+  block_names = c("subject1", "subject2", "subject3")
+)
+
+# Create three multidesign objects (e.g., for three subjects)
+d1 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=1, run=rep(1:5, 2))
+)
+d2 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+d3 <- multidesign(
+  matrix(rnorm(10*20), 10, 20),
+  data.frame(y=1:10, subject=3, run=rep(1:5, 2))
+)
+
+# Combine into a hyperdesign
+hd <- hyperdesign(
+  list(d1, d2, d3),
+  block_names = c("subject1", "subject2", "subject3")
+)
 }
+\seealso{
+\code{\link{df_to_hyperdesign}} for creating hyperdesign objects from data frames,
+  \code{\link{multidesign}} for the underlying multidesign structure,
+  \code{\link{multiblock}} for another multi-block data structure
+
+\code{\link{df_to_hyperdesign}} for creating hyperdesign objects from data frames,
+  \code{\link{multidesign}} for the underlying multidesign structure,
+  \code{\link{design.hyperdesign}} for extracting design information
+
+Other hyperdesign functions: 
+\code{\link{design.hyperdesign}()},
+\code{\link{df_to_hyperdesign}()},
+\code{\link{init_transform.hyperdesign}()},
+\code{\link{subset.hyperdesign}()},
+\code{\link{xdata.hyperdesign}()}
+}
+\concept{hyperdesign functions}

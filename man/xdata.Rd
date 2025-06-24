@@ -2,10 +2,47 @@
 % Please edit documentation in R/all_generic.R
 \name{xdata}
 \alias{xdata}
-\title{extract data}
+\title{Extract Data Matrix}
 \usage{
 xdata(x, ...)
 }
+\arguments{
+\item{x}{The object containing the data matrix}
+
+\item{...}{Additional arguments passed to methods:
+* For hyperdesign objects: 'block' parameter to specify which block's data to return}
+}
+\value{
+The data matrix component of the object, or a list of matrices for hyperdesign objects
+}
 \description{
-get the `x` data block
+Retrieves the data matrix component from various object types in the package.
+This function provides a consistent interface for accessing the underlying data
+regardless of the specific object structure.
+}
+\details{
+The function behaves differently depending on the class of the input object:
+* For multidesign objects: Returns the data matrix component
+* For hyperdesign objects: Returns a list of data matrices, one for each block
+  (or a single matrix if a specific block is requested)
+* For multiframe objects: Returns the combined data from all observations
+}
+\examples{
+# With a multidesign object
+X <- matrix(rnorm(20*10), 20, 10)
+Y <- data.frame(group = rep(letters[1:4], each=5))
+mds <- multidesign(X, Y)
+X_data <- xdata(mds)  # Returns the original matrix X
+
+# With a hyperdesign object
+d1 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=1))
+d2 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=2))
+hd <- hyperdesign(list(d1, d2))
+all_data <- xdata(hd)  # Returns list of matrices
+block1_data <- xdata(hd, block=1)  # Returns just the first block's matrix
+
+}
+\seealso{
+\code{\link{design}} for extracting design information,
+  \code{\link{column_design}} for extracting column metadata
 }
