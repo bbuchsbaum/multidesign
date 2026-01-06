@@ -199,3 +199,67 @@ test_that("subsetting works correctly", {
     all(x$design$condition == "A" & x$design$subject == 1)
   })))
 })
+
+# ============================================================================
+# Regression tests for bug fixes
+# ============================================================================
+
+test_that("print.hyperdesign uses crayon namespace correctly", {
+  # Create simple hyperdesign
+  d1 <- multidesign(
+    matrix(rnorm(20), 4, 5),
+    data.frame(condition = rep(c("A", "B"), each = 2))
+  )
+  d2 <- multidesign(
+    matrix(rnorm(20), 4, 5),
+    data.frame(condition = rep(c("A", "B"), each = 2))
+  )
+  hd <- hyperdesign(list(d1, d2), block_names = c("block1", "block2"))
+
+  # Should print without error (this would fail if crayon:: prefix is missing)
+  expect_output(print(hd), "Hyperdesign Object")
+  expect_output(print(hd), "Number of blocks:")
+  expect_output(print(hd), "block1")
+})
+
+test_that("print.foldlist works correctly", {
+  # Create hyperdesign with non-confounded variable
+  d1 <- multidesign(
+    matrix(rnorm(20), 4, 5),
+    data.frame(condition = rep(c("A", "B"), each = 2), run = 1:4)
+  )
+  d2 <- multidesign(
+    matrix(rnorm(20), 4, 5),
+    data.frame(condition = rep(c("A", "B"), each = 2), run = 1:4)
+  )
+  hd <- hyperdesign(list(d1, d2))
+
+  folds <- fold_over(hd, run)
+
+  # Should print without error
+  expect_output(print(folds), "Cross-Validation Folds")
+  expect_output(print(folds), "Fold 1:")
+})
+
+test_that("block_indices is re-exported correctly from multivarious", {
+  # Test that block_indices works as expected
+  d1 <- multidesign(
+    matrix(rnorm(20), 4, 5),
+    data.frame(condition = rep(c("A", "B"), each = 2))
+  )
+  d2 <- multidesign(
+    matrix(rnorm(30), 6, 5),
+    data.frame(condition = rep(c("A", "B", "C"), each = 2))
+  )
+  hd <- hyperdesign(list(d1, d2))
+
+  # Get all block indices
+  all_indices <- block_indices(hd)
+  expect_length(all_indices, 2)
+  expect_equal(all_indices[[1]], 1:5)  # Block 1 has 5 columns
+  expect_equal(all_indices[[2]], 6:10)  # Block 2 has 5 columns
+
+  # Get specific block indices
+  block1_indices <- block_indices(hd, 1)
+  expect_equal(block1_indices, 1:5)
+})

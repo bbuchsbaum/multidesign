@@ -139,21 +139,85 @@ test_that("multiframe summarization works correctly", {
     subject = rep(1:5, times=2)
   )
   mf <- multiframe(x, y)
-  
+
   # Test basic summarization
   sum_cond <- summarize_by(mf, condition)
   expect_equal(nrow(sum_cond), 2)  # Two conditions
   expect_true(is.numeric(sum_cond$data[[1]]))
   expect_equal(length(sum_cond$data[[1]]), ncol(x))
-  
+
   # Test with custom summary function
   sum_custom <- summarize_by(mf, condition, sfun=function(x) apply(x, 2, sd))
   expect_equal(nrow(sum_custom), 2)
   expect_equal(length(sum_custom$data[[1]]), ncol(x))
-  
+
   # Test with data extraction
   sum_extract <- summarize_by(mf, condition, extract_data=TRUE)
   expect_true(is.matrix(sum_extract))
   expect_equal(nrow(sum_extract), 2)
   expect_equal(ncol(sum_extract), ncol(x))
+})
+
+# ============================================================================
+# Regression tests for bug fixes
+# ============================================================================
+
+test_that("obs_group validates matrix indices using nrow, not length", {
+  # This test verifies the fix for using nrow(X) instead of length(X)
+  # for matrix index validation
+
+  # Create a matrix with 5 rows and 4 columns (20 elements total)
+  X_mat <- matrix(1:20, 5, 4)
+
+  # This should work: 5 indices for 5 rows
+  expect_no_error(obs_group(X_mat, ind = 1:5))
+
+  # This should fail: 20 indices for 5 rows (the old bug would have allowed this)
+  # because length(X_mat) = 20, but nrow(X_mat) = 5
+  expect_error(
+    obs_group(X_mat, ind = 1:20),
+    "must be equal to"
+  )
+
+  # This should fail: wrong number of indices
+  expect_error(
+    obs_group(X_mat, ind = 1:3),
+    "must be equal to"
+  )
+})
+
+test_that("obs_group with list uses length correctly", {
+  # List should use length(X) which is correct for lists
+  X_list <- list(a = 1:4, b = 5:8, c = 9:12)
+
+  # This should work: 3 indices for 3 list elements
+  expect_no_error(obs_group(X_list, ind = 1:3))
+
+  # This should fail: wrong number of indices
+  expect_error(
+    obs_group(X_list, ind = 1:5),
+    "must be equal to"
+  )
+})
+
+test_that("print.multiframe works correctly", {
+  x <- matrix(1:40, 10, 4)
+  y <- data.frame(
+    condition = rep(c("A", "B"), each = 5),
+    subject = rep(1:5, times = 2)
+  )
+  mf <- multiframe(x, y)
+
+  # Should print without error and contain expected content
+  expect_output(print(mf), "Multiframe Object")
+  expect_output(print(mf), "Number of Observations: 10")
+})
+
+test_that("print.observation_set works correctly", {
+  X_mat <- matrix(1:20, 5, 4)
+  obs_set <- obs_group(X_mat)
+
+  # Should print without error
+  expect_output(print(obs_set), "Observation Set")
+  expect_output(print(obs_set), "Number of Observations: 5")
 })

@@ -120,3 +120,27 @@ test_that("multiblock handles errors correctly", {
     "`i` must be between 1 and 2, not 3"
   )
 })
+
+# ============================================================================
+# Regression tests for bug fixes
+# ============================================================================
+
+test_that("print.multiblock_list uses crayon namespace correctly", {
+  # Create column-stacked multiblock
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb_c <- multiblock(list(X1, X2))
+
+  # Should print without error (this would fail if crayon:: prefix is missing)
+  expect_output(print(mb_c), "Multiblock Object")
+  expect_output(print(mb_c), "Number of blocks:")
+  expect_output(print(mb_c), "Orientation:")
+
+  # Test row-stacked as well
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  mb_r <- multiblock(list(Y1, Y2))
+
+  expect_output(print(mb_r), "Multiblock Object")
+  expect_output(print(mb_r), "rstacked")
+})
