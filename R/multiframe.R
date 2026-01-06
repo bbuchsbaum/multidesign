@@ -201,7 +201,7 @@ obs_group <- function(X, fun=NULL, ind=NULL) {
     if (is.null(ind)) {
       ind <- 1:nrow(X)
     } else {
-      chk::chk_equal(length(X), length(ind))
+      chk::chk_equal(nrow(X), length(ind))
     }
     lapply(1:nrow(X), function(i) {
       observation.matrix(X, ind[i])

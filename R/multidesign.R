@@ -278,7 +278,13 @@ summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) 
   nest.by <- rlang::quos(...)
   ret <- x$design %>% nest_by(!!!nest.by)
 
-  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], drop=FALSE,])))
+  # Get the row indices by extracting the row numbers from nested data
+  dsum <- do.call(rbind, lapply(seq_len(nrow(ret)), function(i) {
+    nested_data <- ret$data[[i]]
+    # Use the actual row positions from the nested tibble
+    row_indices <- as.numeric(rownames(nested_data))
+    sfun(x$x[row_indices, , drop=FALSE])
+  }))
   ret2 <- ret %>% select(-data)
   multidesign(dsum, ret2, x$column_design)
 }
@@ -332,9 +338,9 @@ fold_over.multidesign <- function(x, ...) {
     block <- foldframe[[".fold"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
-    testdat <- multidesign(xdata(x)[ind,], x$design[ind,])
+    testdat <- multidesign(xdata(x)[ind,, drop=FALSE], x$design[ind,], x$column_design)
     ## all blocks except
-    traindat <- multidesign(xdata(x)[-ind,], x$design[-ind,])
+    traindat <- multidesign(xdata(x)[-ind,, drop=FALSE], x$design[-ind,], x$column_design)
     list(analysis=traindat,
          assessment=testdat)
 
@@ -450,8 +456,8 @@ print.reduced_multidesign <- function(x, ...) {
         crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
   }
 
-  # Column metadata if present
-  if (ncol(x$column_design) > 0) {
+  # Column metadata if present (reduced_multidesign may not have column_design)
+  if (!is.null(x$column_design) && ncol(x$column_design) > 0) {
     cat(crayon::bold("\nColumn Metadata:"), "\n")
     col_vars <- names(x$column_design)
     for (var in col_vars) {

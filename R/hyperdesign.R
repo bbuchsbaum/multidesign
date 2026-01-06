@@ -121,6 +121,7 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #' d2 <- multidesign(
 #'   matrix(rnorm(10*20), 10, 20),
 #'   data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+#' )
 #' d3 <- multidesign(
 #'   matrix(rnorm(10*20), 10, 20),
 #'   data.frame(y=1:10, subject=3, run=rep(1:5, 2))
@@ -603,10 +604,10 @@ subset.hyperdesign <- function(x, fexpr) {
 #' @export
 print.hyperdesign <- function(x, ...) {
   # Header
-  cat(bold(blue("\n═══ Hyperdesign Object ═══\n")))
+  cat(crayon::bold(crayon::blue("\n═══ Hyperdesign Object ═══\n")))
 
   # Number of blocks
-  cat(bold("\nNumber of blocks: "), green(length(x)), "\n")
+  cat(crayon::bold("\nNumber of blocks: "), crayon::green(length(x)), "\n")
 
   # Block details
   for (i in seq_along(x)) {
@@ -614,21 +615,21 @@ print.hyperdesign <- function(x, ...) {
     block <- x[[i]]
 
     # Block header
-    cat(bold(blue("\n┌─ Block ")), bold(blue(i)),
-        if (!is.null(block_name)) bold(blue(paste0(" (", block_name, ")"))) else "",
-        bold(blue(" ─────────────────\n")))
+    cat(crayon::bold(crayon::blue("\n┌─ Block ")), crayon::bold(crayon::blue(i)),
+        if (!is.null(block_name)) crayon::bold(crayon::blue(paste0(" (", block_name, ")"))) else "",
+        crayon::bold(crayon::blue(" ─────────────────\n")))
 
     # Data dimensions
-    cat("│ ", bold("Dimensions:"),
-        green(paste0(nrow(block$x), " × ", ncol(block$x))), "\n")
+    cat("│ ", crayon::bold("Dimensions:"),
+        crayon::green(paste0(nrow(block$x), " × ", ncol(block$x))), "\n")
 
     # Design variables
     design_vars <- names(block$design)
-    cat("│ ", bold("Design Variables:"),
-        green(paste(design_vars, collapse=", ")), "\n")
+    cat("│ ", crayon::bold("Design Variables:"),
+        crayon::green(paste(design_vars, collapse=", ")), "\n")
 
     # Sample of unique values for each design variable
-    cat("│ ", bold("Design Structure:"), "\n")
+    cat("│ ", crayon::bold("Design Structure:"), "\n")
     for (var in design_vars) {
       unique_vals <- unique(block$design[[var]])
       n_unique <- length(unique_vals)
@@ -639,20 +640,20 @@ print.hyperdesign <- function(x, ...) {
       } else {
         paste(unique_vals, collapse=", ")
       }
-      cat("│   ", white("•"), " ", var, ": ",
-          green(n_unique), " levels (", sample_vals, ")\n", sep="")
+      cat("│   ", crayon::white("•"), " ", var, ": ",
+          crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
     }
 
     # Column design if present
     if (!is.null(block$column_design)) {
-      cat("│ ", bold("Column Design:"), "Present\n")
+      cat("│ ", crayon::bold("Column Design:"), "Present\n")
       col_vars <- names(block$column_design)
-      cat("│   Variables: ", green(paste(col_vars, collapse=", ")), "\n")
+      cat("│   Variables: ", crayon::green(paste(col_vars, collapse=", ")), "\n")
     }
   }
 
   # Footer
-  cat(bold(blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
 
   invisible(x)
 }

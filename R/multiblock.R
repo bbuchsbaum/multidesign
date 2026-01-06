@@ -202,6 +202,6 @@ print.multiblock_list <- function(x, ...) {
         crayon::green(sum(sapply(x, nrow))), "\n")
   }
   
-  cat(crayon::bold(blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
   invisible(x)
 }
