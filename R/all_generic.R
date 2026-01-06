@@ -315,6 +315,23 @@ is_rstacked <- function(x) UseMethod("is_rstacked")
 summarize_by <- function(x, sfun, ...) UseMethod("summarize_by")
 
 
+#' Reduce Dimensionality
+#'
+#' @description
+#' Generic function for performing dimensionality reduction on multivariate data objects.
+#' Methods are provided for reducing multidesign objects while preserving design structure.
+#'
+#' @param x The object to reduce (e.g., a multidesign object)
+#' @param nc Number of components to retain
+#' @param ... Additional arguments passed to methods
+#'
+#' @return A reduced object of the appropriate class
+#'
+#' @seealso \code{\link{reduce.multidesign}} for the multidesign method
+#' @export
+reduce <- function(x, nc, ...) UseMethod("reduce")
+
+
 #' Generate Cross-validation Folds
 #'
 #' @description
@@ -569,18 +586,18 @@ multivarious::init_transform
 #' Get Block Indices
 #'
 #' Retrieve the indices that define the boundaries of blocks in a multiblock or hyperdesign object.
+#' This is a re-export of the block_indices generic from the multivarious package, with additional
+#' methods for multiblock and hyperdesign objects defined in this package.
 #'
 #' @param x The object to get block indices from
 #' @param ... Additional arguments passed to methods
-#' @return A matrix with start and end indices for each block
-#' @export
-block_indices <- function(x, ...) UseMethod("block_indices")
-
-#' Get Block Indices
+#' @return A matrix with start and end indices for each block, or a list/vector of indices
 #'
-#' @title Get Block Indices from a Multiblock Object
-#' @description This is a re-export of the block_indices function from the multivarious package.
-#' See \code{multivarious::block_indices} for full documentation.
+#' @seealso
+#'   \code{\link[multivarious]{block_indices}} for the original generic,
+#'   \code{\link{block_indices.multiblock_list}} for multiblock method,
+#'   \code{\link{block_indices.hyperdesign}} for hyperdesign method
+#'
 #' @name block_indices
 #' @importFrom multivarious block_indices
 #' @export

@@ -99,7 +99,8 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
 #' reduced_mds <- reduce(mds, nc=5)
 #'
 #' @family multidesign functions
-#' @seealso \code{\link{multidesign}}
+#' @seealso \code{\link{multidesign}}, \code{\link{reduce}}
+#' @method reduce multidesign
 #' @export
 reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(x$x, ncomp=nc,...)) {
   projector <- rfun(x)
@@ -183,13 +184,38 @@ subset.multidesign <- function(x, fexpr) {
 #' @export
 split.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
-  ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
-  # Use row numbers instead of .index
+
+
+  # Add explicit row index before nesting to avoid relying on fragile rownames
+  design_with_idx <- x$design %>%
+    mutate(.row_id = seq_len(n()))
+
+  ret <- design_with_idx %>% nest_by(!!!nest.by, .keep=TRUE)
+
+  # Extract indices and data using explicit .row_id column
   xl <- ret$data %>% purrr::map(~{
-    ind <- as.numeric(rownames(.x))
+    ind <- .x$.row_id
     x$x[ind, , drop=FALSE]
   })
-  ret <- lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]], x$column_design))
+
+  # Create named list using .splitvar values
+  group_vars <- as.character(rlang::quos_auto_name(nest.by))
+  split_names <- if (length(group_vars) > 0) {
+    apply(ret[, group_vars, drop=FALSE], 1, function(row) {
+      paste(as.character(row), collapse="_")
+    })
+  } else {
+    paste0("group_", seq_len(nrow(ret)))
+  }
+
+  # Remove .row_id from nested data before creating multidesign objects
+  result <- lapply(seq_len(nrow(ret)), function(i) {
+    nested_data <- ret$data[[i]]
+    nested_data$.row_id <- NULL
+    multidesign.matrix(xl[[i]], nested_data, x$column_design)
+  })
+  names(result) <- split_names
+  result
 }
 
 #' Get Split Indices for a Multidesign Object
@@ -214,19 +240,29 @@ split.multidesign <- function(x, ..., collapse=FALSE) {
 split_indices.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
 
-  # Convert numeric variables to factors for proper grouping
+  # Add explicit row index before nesting to avoid relying on fragile rownames
+  # Convert numeric grouping variables to factors for proper grouping
   design_copy <- x$design %>%
-    mutate(across(where(is.numeric), as.factor))
+    mutate(.row_id = seq_len(n()))
+
+  # Only convert the grouping variables to factors if they are numeric
+  group_var_names <- as.character(rlang::quos_auto_name(nest.by))
+  for (var in group_var_names) {
+    if (is.numeric(design_copy[[var]])) {
+      design_copy[[var]] <- as.factor(design_copy[[var]])
+    }
+  }
 
   ret <- design_copy %>% nest_by(!!!nest.by, .keep=TRUE)
-  # Use row numbers instead of .index
-  xl <- ret$data %>% purrr::map(~ as.numeric(rownames(.x)))
+
+  # Extract indices using explicit .row_id column
+  xl <- ret$data %>% purrr::map(~ .x$.row_id)
 
   # Get group variable names
-  group_vars <- colnames(ret %>% select(dplyr::group_vars(ret)))
+  group_vars <- colnames(ret %>% dplyr::select(dplyr::group_vars(ret)))
 
   # Create .splitvar by uniting all group variables with underscore
-  selret <- ret %>% select(dplyr::group_vars(ret))
+  selret <- ret %>% dplyr::select(dplyr::group_vars(ret))
   out <- selret %>%
     ungroup() %>%
     mutate(
@@ -274,18 +310,21 @@ split_indices.multidesign <- function(x, ..., collapse=FALSE) {
 #' @seealso \code{\link{split.multidesign}}
 #' @export
 summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
-  #nested <- split(x, ...)
   nest.by <- rlang::quos(...)
-  ret <- x$design %>% nest_by(!!!nest.by)
 
-  # Get the row indices by extracting the row numbers from nested data
+  # Add explicit row index before nesting to avoid relying on fragile rownames
+  design_with_idx <- x$design %>%
+    mutate(.row_id = seq_len(n()))
+
+  ret <- design_with_idx %>% nest_by(!!!nest.by)
+
+  # Get the row indices using explicit .row_id column
   dsum <- do.call(rbind, lapply(seq_len(nrow(ret)), function(i) {
     nested_data <- ret$data[[i]]
-    # Use the actual row positions from the nested tibble
-    row_indices <- as.numeric(rownames(nested_data))
+    row_indices <- nested_data$.row_id
     sfun(x$x[row_indices, , drop=FALSE])
   }))
-  ret2 <- ret %>% select(-data)
+  ret2 <- ret %>% dplyr::select(-data)
   multidesign(dsum, ret2, x$column_design)
 }
 

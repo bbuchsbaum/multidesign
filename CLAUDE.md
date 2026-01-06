@@ -189,8 +189,8 @@ split_data <- split(mds, condition)
 # Create cross-validation folds
 cv_folds <- fold_over(mds, condition)
 
-# Summarize by condition
-condition_means <- summarize_by(mds, colMeans, condition)
+# Summarize by condition (sfun defaults to colMeans)
+condition_means <- summarize_by(mds, condition)
 ```
 
 ## Key Exported Functions
@@ -208,9 +208,48 @@ condition_means <- summarize_by(mds, colMeans, condition)
 - `observation()`: Create observation objects
 - `obs_group()`: Create observation groups
 
+## Important Notes and Gotchas
+
+### For Users
+
+1. **Lazy Evaluation in Multiframe**: The observation functions in `multiframe` objects capture data by reference using closures. If you modify the original data after creating a multiframe, all observations will reflect those changes. Always work with copies if you need to modify source data.
+
+   ```r
+   X <- matrix(1:20, 5, 4)
+   mf <- multiframe(X, data.frame(id=1:5))
+   X[1,1] <- 999  # This affects mf$design$.obs[[1]]() !
+   ```
+
+2. **Hyperdesign Cross-validation with Confounded Variables**: When using `fold_over()` on hyperdesign objects, the splitting variable must vary within blocks. If a variable is confounded with blocks (e.g., each subject is in a separate block), the function will error because there would be no training data available. Use variables that vary within each block.
+
+   ```r
+   # This will error if 'subject' is unique per block:
+   fold_over(hd, subject)  # Error: confounded with blocks
+
+   # Use a variable that varies within blocks:
+   fold_over(hd, condition)  # Works if condition varies within blocks
+   ```
+
+3. **Split Returns Named List**: The `split.multidesign()` function returns a named list where names are derived from the splitting variable values (e.g., `"A"`, `"B"` or `"A_1"`, `"A_2"` for multiple variables).
+
+4. **Column Design Preservation**: Functions like `fold_over()`, `split()`, and `subset()` preserve `column_design` metadata. The `reduce()` function does NOT preserve column_design since dimensions change.
+
+### For Developers
+
+1. **Row Indexing Strategy**: The package uses explicit `.row_id` columns added before `nest_by()` operations to track original row positions. This is more reliable than depending on tibble rownames which can be fragile after grouping/nesting operations.
+
+2. **S3 Method Registration**:
+   - `reduce.multidesign` is a proper S3 method for the `reduce` generic
+   - `block_indices` is re-exported from the `multivarious` package with additional methods defined here
+   - Always use `@method` and `@export` roxygen tags for S3 methods
+
+3. **Crayon Namespace**: All crayon functions (`bold`, `blue`, `green`, `white`, `yellow`) must be called with the `crayon::` prefix in print methods since they are not imported into the namespace.
+
+4. **Required NULL Checks**: When accessing `column_design` in print methods or other functions, always check for NULL first since some objects (like `reduced_multidesign`) may not have this field.
+
 ## Related Packages
 
-- **multivarious**: Provides foundation for multivariate analysis
+- **multivarious**: Provides foundation for multivariate analysis (source of `block_indices` generic)
 - **tidyverse**: Data manipulation and visualization ecosystem
 - **recipes**: Data preprocessing and feature engineering
 - **rsample**: Resampling and cross-validation (complementary approach)
