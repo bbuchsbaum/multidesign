@@ -53,12 +53,12 @@
 multidesign.matrix <- function(x, y, column_design=NULL, ...) {
   chk::chk_equal(nrow(x), nrow(y))
   chk::chk_s3_class(y, "data.frame")
-  y <- as_tibble(y)
+  y <- tibble::as_tibble(y)
 
   if (!is.null(column_design)) {
     chk::chk_equal(ncol(x), nrow(column_design))
     chk::chk_s3_class(column_design, "data.frame")
-    column_design <- as_tibble(column_design)
+    column_design <- tibble::as_tibble(column_design)
   } else {
     # Create a default column design with an index
     column_design <- tibble::tibble(.index = seq_len(ncol(x)))
