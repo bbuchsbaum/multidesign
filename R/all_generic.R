@@ -1,3 +1,6 @@
+# Suppress R CMD check notes for NSE variables
+utils::globalVariables(c("data", "temp"))
+
 #' Create an Observation Object
 #'
 #' @description
@@ -54,7 +57,7 @@ observation <- function(x, i) UseMethod("observation")
 #' X <- matrix(rnorm(20*100), 20, 100)
 #' 
 #' # Create design information
-#' Y <- tibble(condition=rep(letters[1:5], 4))
+#' Y <- tibble::tibble(condition=rep(letters[1:5], 4))
 #' 
 #' # Create multidesign object
 #' mds <- multidesign(X, Y)
@@ -148,7 +151,7 @@ hyperdesign <- function(x, block_names = NULL) UseMethod("hyperdesign")
 #' @examples
 #' # Create sample data
 #' X <- matrix(rnorm(20*100), 20, 100)
-#' Y <- tibble(condition = rep(letters[1:5], 4))
+#' Y <- tibble::tibble(condition = rep(letters[1:5], 4))
 #'
 #' # Create multiframe object
 #' mf <- multiframe(X, Y)
@@ -288,18 +291,17 @@ is_rstacked <- function(x) UseMethod("is_rstacked")
 #' to the corresponding subset of observations.
 #'
 #' @param x The multivariate data (a matrix, multidesign, multiframe, or other data container)
-#' @param sfun The columnwise summary function (e.g., `colMeans`, `colSums`, etc.)
-#' @param ... Unquoted names of variables to group by, or for matrices, the grouping variables
+#' @param ... Method-specific arguments. For multidesign/multiframe: unquoted names of variables
+#'   to group by, plus optional `sfun` (summary function, default `colMeans`) and
+#'   `extract_data` (logical). For matrices: the grouping variables.
 #'
 #' @return For multidesign/multiframe objects: a new object of the same class with summarized data.
 #'         For matrices: a matrix of summary statistics for each group.
 #'
 #' @examples
+#' # With a multidesign object
 #' X <- matrix(rnorm(100*10), 100, 10)
 #' groups <- rep(letters[1:5], each=20)
-#' group_means <- summarize_by(X, colMeans, groups)
-#'
-#' # With a multidesign object
 #' mds <- multidesign(X, data.frame(group=groups))
 #' mds_means <- summarize_by(mds, group)
 #'
@@ -307,12 +309,12 @@ is_rstacked <- function(x) UseMethod("is_rstacked")
 #' mf <- multiframe(X, data.frame(group=groups))
 #' mf_means <- summarize_by(mf, group)
 #'
-#' @seealso 
+#' @seealso
 #'   \code{\link{multidesign}} for creating multidesign objects,
 #'   \code{\link{multiframe}} for creating multiframe objects,
 #'   \code{\link{split}} for splitting data by grouping variables
 #' @export
-summarize_by <- function(x, sfun, ...) UseMethod("summarize_by")
+summarize_by <- function(x, ...) UseMethod("summarize_by")
 
 
 #' Generate Cross-validation Folds
@@ -344,12 +346,9 @@ summarize_by <- function(x, sfun, ...) UseMethod("summarize_by")
 #'   \item{held_out}{Information about which values were held out in each fold}
 #'
 #' @examples
-#' # Basic example with matrix data
+#' # With a multidesign object
 #' X <- matrix(rnorm(100*10), 100, 10)
 #' groups <- rep(1:2, each=50)
-#' folds <- fold_over(X, nfolds=5, stratum=groups)
-#'
-#' # With a multidesign object
 #' mds <- multidesign(X, data.frame(group=groups, subject=rep(1:10, each=10)))
 #' folds_by_group <- fold_over(mds, group)
 #'
@@ -396,8 +395,8 @@ fold_over <- function(x, ...) UseMethod("fold_over")
 #' X_data <- xdata(mds)  # Returns the original matrix X
 #'
 #' # With a hyperdesign object
-#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=1))
-#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=2))
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=rep(1,10)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5), data.frame(subject=rep(2,10)))
 #' hd <- hyperdesign(list(d1, d2))
 #' all_data <- xdata(hd)  # Returns list of matrices
 #' block1_data <- xdata(hd, block=1)  # Returns just the first block's matrix
@@ -527,28 +526,13 @@ column_design <- function(x, ...) UseMethod("column_design")
 #'
 #' @param x The object to split (data frame, multidesign, multiframe, etc.)
 #' @param ... Unquoted names of variables to split by
+#' @param collapse Logical; whether to collapse the resulting indices
 #'
 #' @return A tibble or list containing:
 #'   \item{group variables}{The splitting variables and their values}
 #'   \item{indices}{List column of integer vectors with row indices for each group}
 #'
 #' @examples
-#' # With a data frame
-#' dat <- data.frame(
-#'   x = 1:100,
-#'   group = rep(letters[1:4], each=25),
-#'   block = rep(1:5, times=20)
-#' )
-#' 
-#' # Split by one variable
-#' indices_by_group <- split_indices(dat, group)
-#' 
-#' # Split by multiple variables
-#' indices_by_group_block <- split_indices(dat, group, block)
-#' 
-#' # Use indices to subset original data
-#' group_a_data <- dat[indices_by_group$indices[[1]], ]
-#'
 #' # With a multidesign object
 #' mds <- multidesign(matrix(rnorm(100*10), 100, 10),
 #'                   data.frame(group=rep(letters[1:4], each=25),
@@ -562,25 +546,93 @@ column_design <- function(x, ...) UseMethod("column_design")
 split_indices <- function(x, ...) UseMethod("split_indices")
 
 
+#' Select Variables Based on Column Design
+#'
+#' @description
+#' Subsets the columns (variables) of an object based on conditions applied to the
+#' column design metadata. This allows filtering variables by their properties
+#' (e.g., region, type, hemisphere) using dplyr-style filter expressions.
+#'
+#' @param x The object to select variables from (multidesign, hyperdesign, etc.)
+#' @param ... Filter expressions evaluated against the column design (using dplyr::filter semantics)
+#'
+#' @return An object of the same class with a subset of columns/variables
+#'
+#' @examples
+#' X <- matrix(rnorm(20*10), 20, 10)
+#' Y <- data.frame(condition = rep(c("A", "B"), each=10))
+#' col_info <- data.frame(
+#'   region = rep(c("frontal", "parietal"), 5),
+#'   hemisphere = rep(c("left", "right"), each=5)
+#' )
+#' mds <- multidesign(X, Y, col_info)
+#'
+#' # Select only frontal variables
+#' mds_frontal <- select_variables(mds, region == "frontal")
+#'
+#' @seealso
+#'   \code{\link{column_design}} for extracting column metadata,
+#'   \code{\link{multidesign}} for creating multidesign objects
+#' @export
+select_variables <- function(x, ...) UseMethod("select_variables")
+
+#' Convert to a Multidesign Object
+#'
+#' @description
+#' Converts an object (e.g., a hyperdesign) into a single multidesign object
+#' by collapsing its structure.
+#'
+#' @param x The object to convert
+#' @param ... Additional arguments passed to methods
+#'
+#' @return A multidesign object
+#'
+#' @examples
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2))
+#'
+#' # Collapse hyperdesign to a single multidesign
+#' md <- as_multidesign(hd)
+#'
+#' @seealso
+#'   \code{\link{hyperdesign}} for creating hyperdesign objects,
+#'   \code{\link{multidesign}} for the multidesign class
+#' @export
+as_multidesign <- function(x, ...) UseMethod("as_multidesign")
+
+#' Initialize Transformation
+#'
+#' @title Initialize Transformation
+#' @description Re-exported from \pkg{multivarious}.
+#' See \code{multivarious::init_transform} for details.
+#'
+#' @param x The object to transform
+#' @param X The data or preprocessing specification
+#' @param ... Additional arguments passed to methods
+#' @return The transformed object (class-specific)
+#' @name init_transform
 #' @importFrom multivarious init_transform
 #' @export
 multivarious::init_transform
 
 #' Get Block Indices
 #'
-#' Retrieve the indices that define the boundaries of blocks in a multiblock or hyperdesign object.
-#'
-#' @param x The object to get block indices from
-#' @param ... Additional arguments passed to methods
-#' @return A matrix with start and end indices for each block
-#' @export
-block_indices <- function(x, ...) UseMethod("block_indices")
-
-#' Get Block Indices
-#'
 #' @title Get Block Indices from a Multiblock Object
 #' @description This is a re-export of the block_indices function from the multivarious package.
 #' See \code{multivarious::block_indices} for full documentation.
+#' @param x The object to get block indices from
+#' @param ... Additional arguments passed to methods
+#' @return An integer vector or list of integer vectors with indices for the
+#'   requested block(s)
+#'
+#' @examples
+#' mb <- multiblock(list(matrix(1:10, 5, 2), matrix(11:20, 5, 2)))
+#' block_indices(mb, 1)
+#' block_indices(mb, 2)
+#'
 #' @name block_indices
 #' @importFrom multivarious block_indices
 #' @export

@@ -3,10 +3,8 @@
 \name{block_indices}
 \alias{block_indices}
 \alias{block_indices.hyperdesign}
-\title{Get Block Indices}
+\title{Get Block Indices from a Multiblock Object}
 \usage{
-block_indices(x, ...)
-
 block_indices(x, ...)
 
 \method{block_indices}{hyperdesign}(x, i, byrow = FALSE, ...)
@@ -21,14 +19,19 @@ block_indices(x, ...)
 \item{byrow}{if true, return row-oriented indices}
 }
 \value{
-A matrix with start and end indices for each block
+An integer vector or list of integer vectors with indices for the
+  requested block(s)
 }
 \description{
-Retrieve the indices that define the boundaries of blocks in a multiblock or hyperdesign object.
-
 This is a re-export of the block_indices function from the multivarious package.
 See \code{multivarious::block_indices} for full documentation.
 }
 \details{
 Get Block Indices
+}
+\examples{
+mb <- multiblock(list(matrix(1:10, 5, 2), matrix(11:20, 5, 2)))
+block_indices(mb, 1)
+block_indices(mb, 2)
+
 }

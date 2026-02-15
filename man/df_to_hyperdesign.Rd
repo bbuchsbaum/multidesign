@@ -25,7 +25,7 @@ related multidesign objects, such as when dealing with multiple subjects or sess
 }
 \examples{
 # Create a sample tibble with multiple subjects
-sample_tibble <- tibble(
+sample_tibble <- tibble::tibble(
   felab = rep(1:2, each = 3),
   attention = rep(c("DA", "FA"), times = 3),
   basis = rep(c("basis01", "basis02", "basis03"), times = 2),
@@ -49,8 +49,9 @@ hd <- df_to_hyperdesign(
   \code{\link{design.hyperdesign}} for extracting design information
 
 Other hyperdesign functions: 
+\code{\link{as_multidesign}()},
 \code{\link{design.hyperdesign}()},
-\code{\link{hyperdesign}()},
+\code{\link{hyperdesign.list}()},
 \code{\link{init_transform.hyperdesign}()},
 \code{\link{subset.hyperdesign}()},
 \code{\link{xdata.hyperdesign}()}

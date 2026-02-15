@@ -4,27 +4,40 @@
 \alias{init_transform.hyperdesign}
 \title{Initialize Transformation for Hyperdesign}
 \usage{
-\method{init_transform}{hyperdesign}(x, preproc, ...)
+\method{init_transform}{hyperdesign}(x, X, ...)
 }
 \arguments{
 \item{x}{A hyperdesign object}
 
-\item{preproc}{A preprocessing specification (e.g., from recipes package)}
+\item{X}{A preprocessing specification (e.g., from recipes package)}
 
 \item{...}{Additional arguments (not used)}
 }
 \value{
-A list of initialized preprocessing objects, one for each block
+A hyperdesign with transformed data and a \code{preproc} attribute
+  containing the fitted preprocessing objects
 }
 \description{
 Method to initialize transformations (e.g., scaling, centering) for hyperdesign objects.
 Each block in the hyperdesign gets its own transformation object.
 }
+\examples{
+\dontrun{
+d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+                  data.frame(cond = rep(c("A","B"), 5)))
+d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+                  data.frame(cond = rep(c("A","B"), 5)))
+hd <- hyperdesign(list(d1, d2))
+hd_transformed <- init_transform(hd, recipes::recipe(~ ., data = as.data.frame(d1$x)))
+}
+
+}
 \seealso{
 Other hyperdesign functions: 
+\code{\link{as_multidesign}()},
 \code{\link{design.hyperdesign}()},
 \code{\link{df_to_hyperdesign}()},
-\code{\link{hyperdesign}()},
+\code{\link{hyperdesign.list}()},
 \code{\link{subset.hyperdesign}()},
 \code{\link{xdata.hyperdesign}()}
 }

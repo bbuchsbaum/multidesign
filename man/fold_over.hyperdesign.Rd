@@ -33,3 +33,17 @@ Important considerations:
 * Numeric variables (like run numbers) are handled by converting them to factors for splitting.
 * The function preserves the design structure within each fold.
 }
+\examples{
+d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+                  data.frame(condition = rep(c("A","B"), 5), run = rep(1:5, 2)))
+d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+                  data.frame(condition = rep(c("A","B"), 5), run = rep(1:5, 2)))
+hd <- hyperdesign(list(d1, d2))
+
+# Leave-one-block-out folds
+folds_block <- fold_over(hd)
+
+# Fold by condition within blocks
+folds_cond <- fold_over(hd, condition)
+
+}

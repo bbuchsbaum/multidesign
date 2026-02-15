@@ -26,7 +26,7 @@ Computes summaries of the data matrix grouped by combinations of design variable
 }
 \examples{
 X <- matrix(rnorm(100*20), 100, 20)
-Y <- tibble(
+Y <- tibble::tibble(
   condition = rep(c("A", "B"), each=50),
   block = rep(1:2, times=50)
 )
@@ -43,12 +43,10 @@ means_by_both <- summarize_by(mds, condition, block)
 \code{\link{split.multidesign}}
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{multidesign}()},
 \code{\link{reduce.multidesign}()},
 \code{\link{split.multidesign}()},
 \code{\link{split_indices.multidesign}()},
-\code{\link{subset.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{subset.multidesign}()}
 }
 \concept{multidesign functions}

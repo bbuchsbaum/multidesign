@@ -4,12 +4,14 @@
 \alias{subset.hyperdesign}
 \title{Subset a Hyperdesign Object}
 \usage{
-\method{subset}{hyperdesign}(x, fexpr)
+\method{subset}{hyperdesign}(x, fexpr, ...)
 }
 \arguments{
 \item{x}{A hyperdesign object}
 
 \item{fexpr}{Filter expression to apply to each block's design}
+
+\item{...}{Additional arguments (not used)}
 }
 \value{
 A new hyperdesign object containing only the selected blocks
@@ -27,14 +29,15 @@ d3 <- multidesign(matrix(rnorm(10*20), 10, 20),
                   data.frame(subject=3, condition=rep(c("A","B"), 5)))
 hd <- hyperdesign(list(d1, d2, d3))
 
-# Keep only blocks 1 and 3
-subset_hd <- subset(hd, c(TRUE, FALSE, TRUE))
+# Keep only condition A
+subset_hd <- subset(hd, condition == "A")
 }
 \seealso{
 Other hyperdesign functions: 
+\code{\link{as_multidesign}()},
 \code{\link{design.hyperdesign}()},
 \code{\link{df_to_hyperdesign}()},
-\code{\link{hyperdesign}()},
+\code{\link{hyperdesign.list}()},
 \code{\link{init_transform.hyperdesign}()},
 \code{\link{xdata.hyperdesign}()}
 }

@@ -24,11 +24,9 @@ Other multiframe functions:
 \code{\link{multiframe.list}()},
 \code{\link{multiframe.matrix}()},
 \code{\link{obs_group}()},
-\code{\link{observation.deflist}()},
-\code{\link{observation.list}()},
-\code{\link{observation.matrix}()},
-\code{\link{observation.vector}()},
 \code{\link{split.multiframe}()},
-\code{\link{summarize_by.multiframe}()}
+\code{\link{subset.multiframe}()},
+\code{\link{summarize_by.multiframe}()},
+\code{\link{xdata.multiframe}()}
 }
 \concept{multiframe functions}

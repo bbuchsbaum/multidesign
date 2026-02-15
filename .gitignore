@@ -5,3 +5,5 @@
 inst/doc
 docs
 .aider*
+/doc/
+/Meta/

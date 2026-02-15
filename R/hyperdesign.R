@@ -42,7 +42,7 @@ block_index_mat <- function(x, byrow=FALSE) {
 #'
 #' @examples
 #' # Create a sample tibble with multiple subjects
-#' sample_tibble <- tibble(
+#' sample_tibble <- tibble::tibble(
 #'   felab = rep(1:2, each = 3),
 #'   attention = rep(c("DA", "FA"), times = 3),
 #'   basis = rep(c("basis01", "basis02", "basis03"), times = 2),
@@ -110,6 +110,7 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #'   \code{\link{design.hyperdesign}} for extracting design information
 #'
 #' @family hyperdesign functions
+#' @method hyperdesign list
 #' @export
 #'
 #' @examples
@@ -121,6 +122,7 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #' d2 <- multidesign(
 #'   matrix(rnorm(10*20), 10, 20),
 #'   data.frame(y=1:10, subject=2, run=rep(1:5, 2))
+#' )
 #' d3 <- multidesign(
 #'   matrix(rnorm(10*20), 10, 20),
 #'   data.frame(y=1:10, subject=3, run=rep(1:5, 2))
@@ -131,7 +133,7 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #'   list(d1, d2, d3),
 #'   block_names = c("subject1", "subject2", "subject3")
 #' )
-hyperdesign <- function(x, block_names=NULL) {
+hyperdesign.list <- function(x, block_names=NULL) {
   chk::chk_true(all(sapply(x, function(d) inherits(d, "multidesign"))))
 
   bind_col <- block_index_mat(x, byrow=FALSE)
@@ -141,18 +143,18 @@ hyperdesign <- function(x, block_names=NULL) {
     chk::chk_true(length(block_names) == length(x))
     names(x) <- block_names
   } else if (is.null(names(x))) {
-    block_names <- paste0("block_", 1:length(x))
+    block_names <- paste0("block_", seq_along(x))
     names(x) <- block_names
   }
 
-  hdes <- lapply(1:length(x), function(i) {
-    tibble(block=i, block_name=block_names[i],
+  hdes <- lapply(seq_along(x), function(i) {
+    tibble::tibble(block=i, block_name=block_names[i],
            nr=nrow(x[[i]]$x), nxvar=ncol(x[[i]]$x), nyvar=ncol(x[[i]]$design),
            row_start=bind_row[i,1], row_end=bind_row[i,2],
            col_start=bind_col[i,1], col_end=bind_col[i,2])
   }) %>% bind_rows()
 
-  cvars <- lapply(x, function(z) names(z$design))
+  cvars <- lapply(x, function(z) setdiff(names(z$design), ".index"))
   cvars <- Reduce(intersect, cvars)
 
   structure(x,
@@ -192,17 +194,28 @@ block_indices.hyperdesign <- function(x, i, byrow=FALSE, ...) {
 #' Each block in the hyperdesign gets its own transformation object.
 #'
 #' @param x A hyperdesign object
-#' @param preproc A preprocessing specification (e.g., from recipes package)
+#' @param X A preprocessing specification (e.g., from recipes package)
 #' @param ... Additional arguments (not used)
-#' @return A list of initialized preprocessing objects, one for each block
+#' @return A hyperdesign with transformed data and a \code{preproc} attribute
+#'   containing the fitted preprocessing objects
+#'
+#' @examples
+#' \dontrun{
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(cond = rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(cond = rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2))
+#' hd_transformed <- init_transform(hd, recipes::recipe(~ ., data = as.data.frame(d1$x)))
+#' }
+#'
 #' @family hyperdesign functions
 #' @method init_transform hyperdesign
 #' @export
-
-init_transform.hyperdesign <- function(x, preproc, ...) {
+init_transform.hyperdesign <- function(x, X, ...) {
   ## pre-processors
   proclist <- lapply(seq_along(x), function(i) {
-    multivarious:::fresh(preproc) %>% prep()
+    multivarious::fresh(X) %>% recipes::prep()
   })
 
   names(proclist) <- names(x)
@@ -243,6 +256,20 @@ init_transform.hyperdesign <- function(x, preproc, ...) {
 #' * The function preserves the design structure within each fold.
 #'
 #' @return A foldlist object containing the cross-validation folds
+#'
+#' @examples
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5), run = rep(1:5, 2)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5), run = rep(1:5, 2)))
+#' hd <- hyperdesign(list(d1, d2))
+#'
+#' # Leave-one-block-out folds
+#' folds_block <- fold_over(hd)
+#'
+#' # Fold by condition within blocks
+#' folds_cond <- fold_over(hd, condition)
+#'
 #' @export
 fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusion_condition = list()) {
   # Get the splitting variables properly
@@ -270,35 +297,31 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 
   # If no splitting variables provided, create leave-one-block-out folds
   if (length(split_vars) == 0) {
-    # Create a fold for each block
-    extract <- function(i) {
-      # Block i is the test set
+    extract_block <- function(i) {
       test_design <- x[[i]]$design
-      test_indices <- seq_len(nrow(test_design))
+      test_design$.index <- NULL
 
-      # Create test dataset
-      testdat <- multidesign(x[[i]]$x[test_indices, , drop = FALSE],
-                            test_design[test_indices, , drop = FALSE],
-                            x[[i]]$column_design)
-
-      # Create training dataset from all other blocks
+      testdat <- multidesign(x[[i]]$x, test_design, x[[i]]$column_design)
       traindat <- hyperdesign(x[-i])
-
-      # Get held_out values
-      held_out_values <- list(block = i)
 
       list(analysis = traindat,
            assessment = testdat,
-           held_out = held_out_values)
+           held_out = list(block = i))
     }
 
-    # Create foldframe for block-wise folding
-    foldframe <- tibble(
+    tlen <- length(x)
+    ret <- deflist(extract_block, len=tlen)
+    names(ret) <- paste0("fold_", seq_along(ret))
+    class(ret) <- c("foldlist", class(ret))
+
+    foldframe <- tibble::tibble(
       .block = seq_along(x),
       indices = lapply(seq_along(x), function(i) seq_len(nrow(x[[i]]$design))),
       .splitvar = paste0("block_", seq_along(x)),
       .fold = seq_along(x)
     )
+    attr(ret, "foldframe") <- foldframe
+    return(ret)
   } else {
     # Early detection of confounded variables
     for (var in split_vars) {
@@ -369,7 +392,7 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
       split_indices(d, ...) %>% mutate(.block = i)
     })
     
-    foldframe <- splits %>% bind_rows() %>% mutate(.fold = 1:n())
+    foldframe <- splits %>% bind_rows() %>% mutate(.fold = seq_len(n()))
   }
 
   condition_met <- function(i) {
@@ -381,7 +404,6 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     # Ensure ind is numeric and valid
     if (length(ind) == 0) return(FALSE)
 
-    # Convert indices to numeric if they're stored as character/factor
     ind <- as.integer(as.character(ind))
     if (any(is.na(ind))) return(FALSE)
 
@@ -391,16 +413,16 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 
     # Apply filtering conditions
     filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
-    
+
     # Check if there are any remaining rows after filtering
     if (nrow(filtered_test) == 0) return(FALSE)
-    
+
     # Also check that the training set won't be empty
-    filtered_test_indices <- as.integer(rownames(filtered_test))
-    if (length(filtered_test_indices) == nrow(x[[block]]$design)) {
+    test_row_indices <- filtered_test$.index
+    if (length(test_row_indices) == nrow(x[[block]]$design)) {
       return(FALSE)  # Would create empty training set
     }
-    
+
     TRUE
   }
 
@@ -414,28 +436,30 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     block <- foldframe[[".block"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
-    # Convert indices to numeric if they're stored as character/factor
     ind <- as.integer(as.character(ind))
 
     test_design <- x[[block]]$design[ind, , drop = FALSE]
 
     # Apply filtering conditions
     filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
-    
-    test_indices <- as.integer(rownames(filtered_test))
-    testdat <- multidesign(x[[block]]$x[test_indices, , drop = FALSE],
+
+    test_row_indices <- filtered_test$.index
+    filtered_test$.index <- NULL
+    testdat <- multidesign(x[[block]]$x[test_row_indices, , drop = FALSE],
                           filtered_test,
                           x[[block]]$column_design)
 
     traindat <- hyperdesign(lapply(seq_along(x), function(j) {
       if (j == block) {
-        if (length(test_indices) == nrow(x[[j]]$x)) {
+        if (length(test_row_indices) == nrow(x[[j]]$x)) {
           stop("Block ", j, " contains only data for the assessment set.\n",
                "This typically happens when a splitting variable is confounded with blocks.\n",
                "Consider using a different splitting variable or restructuring your data.")
         }
-        multidesign(x[[block]]$x[-test_indices, , drop = FALSE],
-                   x[[block]]$design[-test_indices, , drop = FALSE],
+        train_des <- x[[block]]$design[-ind, , drop = FALSE]
+        train_des$.index <- NULL
+        multidesign(x[[block]]$x[-test_row_indices, , drop = FALSE],
+                   train_des,
                    x[[block]]$column_design)
       } else {
         x[[j]]
@@ -444,8 +468,8 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 
     # Get held_out values from the filtered test_design
     held_out_values <- filtered_test %>%
-      distinct() %>%
-      slice(1) %>%
+      dplyr::distinct() %>%
+      dplyr::slice(1) %>%
       as.list()
 
     list(analysis = traindat,
@@ -536,14 +560,8 @@ xdata.hyperdesign <- function(x, block, ...) {
   }
 }
 
-#' Get Column Design Information for Hyperdesign
-#'
-#' Extract column design information from a hyperdesign object.
-#'
-#' @param x A hyperdesign object
-#' @param block Optional block index or name to get design for specific block
-#' @param ... Additional arguments passed to methods
-#' @return A list of column design information for each bloc
+#' @rdname column_design
+#' @param block Optional block index to get design for a specific block
 #' @export
 column_design.hyperdesign <- function(x, block, ...) {
   if (missing(block)) {
@@ -555,12 +573,80 @@ column_design.hyperdesign <- function(x, block, ...) {
   }
 }
 
+#' Collapse a Hyperdesign into a Single Multidesign
+#'
+#' @description
+#' Converts a hyperdesign object into a single multidesign by row-stacking
+#' the data matrices and combining the design data frames. All blocks must
+#' have the same number of columns and identical column designs.
+#'
+#' @param x A hyperdesign object
+#' @param .id Optional character string. If provided, a column with this name
+#'   is added to the design to identify the source block.
+#' @param ... Additional arguments (not used)
+#' @return A single multidesign object
+#'
+#' @examples
+#' d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5)))
+#' d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
+#'                   data.frame(condition = rep(c("A","B"), 5)))
+#' hd <- hyperdesign(list(d1, d2))
+#' md <- as_multidesign(hd)
+#'
+#' @family hyperdesign functions
+#' @rdname as_multidesign
+#' @export
+as_multidesign.hyperdesign <- function(x, .id = NULL, ...) {
+  # Validate same ncol
+  ncols <- sapply(x, function(d) ncol(d$x))
+  if (length(unique(ncols)) > 1) {
+    stop("all blocks must have the same number of columns to collapse a hyperdesign")
+  }
+
+  # Validate identical column designs
+  base_cd <- x[[1]]$column_design
+  for (i in seq_along(x)[-1]) {
+    if (!identical(base_cd, x[[i]]$column_design)) {
+      stop("column designs must be identical across all blocks to collapse a hyperdesign")
+    }
+  }
+
+  # Row-stack data matrices
+  X <- do.call(rbind, lapply(x, function(d) d$x))
+
+  # Combine designs using common_vars
+  cvars <- attr(x, "common_vars")
+  design_list <- lapply(seq_along(x), function(i) {
+    des <- x[[i]]$design
+    des$.index <- NULL
+    if (length(cvars) > 0) {
+      des <- des[, cvars, drop = FALSE]
+    }
+    if (!is.null(.id)) {
+      des[[.id]] <- names(x)[i]
+    }
+    des
+  })
+  design_df <- dplyr::bind_rows(design_list)
+
+  multidesign(X, design_df, base_cd)
+}
+
+#' @rdname select_variables
+#' @export
+select_variables.hyperdesign <- function(x, ...) {
+  out <- lapply(x, function(d) select_variables(d, ...))
+  hyperdesign(out, names(x))
+}
+
 #' Subset a Hyperdesign Object
 #'
 #' Create a new hyperdesign object containing only the specified blocks.
 #'
 #' @param x A hyperdesign object
 #' @param fexpr Filter expression to apply to each block's design
+#' @param ... Additional arguments (not used)
 #' @return A new hyperdesign object containing only the selected blocks
 #' @family hyperdesign functions
 #' @method subset hyperdesign
@@ -575,9 +661,9 @@ column_design.hyperdesign <- function(x, block, ...) {
 #'                   data.frame(subject=3, condition=rep(c("A","B"), 5)))
 #' hd <- hyperdesign(list(d1, d2, d3))
 #'
-#' # Keep only blocks 1 and 3
-#' subset_hd <- subset(hd, c(TRUE, FALSE, TRUE))
-subset.hyperdesign <- function(x, fexpr) {
+#' # Keep only condition A
+#' subset_hd <- subset(hd, condition == "A")
+subset.hyperdesign <- function(x, fexpr, ...) {
   out <- lapply(x, function(d) {
     subset(d, !!rlang::enquo(fexpr))
   })
@@ -603,10 +689,10 @@ subset.hyperdesign <- function(x, fexpr) {
 #' @export
 print.hyperdesign <- function(x, ...) {
   # Header
-  cat(bold(blue("\n═══ Hyperdesign Object ═══\n")))
+  cat(crayon::bold(crayon::blue("\n=== Hyperdesign Object ===\n")))
 
   # Number of blocks
-  cat(bold("\nNumber of blocks: "), green(length(x)), "\n")
+  cat(crayon::bold("\nNumber of blocks: "), crayon::green(length(x)), "\n")
 
   # Block details
   for (i in seq_along(x)) {
@@ -614,21 +700,22 @@ print.hyperdesign <- function(x, ...) {
     block <- x[[i]]
 
     # Block header
-    cat(bold(blue("\n┌─ Block ")), bold(blue(i)),
-        if (!is.null(block_name)) bold(blue(paste0(" (", block_name, ")"))) else "",
-        bold(blue(" ─────────────────\n")))
+    cat(crayon::bold(crayon::blue("\n+- Block ")), crayon::bold(crayon::blue(i)),
+        if (!is.null(block_name)) crayon::bold(crayon::blue(paste0(" (", block_name, ")"))) else "",
+        crayon::bold(crayon::blue(" -----------------\n")))
 
     # Data dimensions
-    cat("│ ", bold("Dimensions:"),
-        green(paste0(nrow(block$x), " × ", ncol(block$x))), "\n")
+    cat("| ", crayon::bold("Dimensions:"),
+        crayon::green(paste0(nrow(block$x), " x ", ncol(block$x))), "\n")
 
     # Design variables
     design_vars <- names(block$design)
-    cat("│ ", bold("Design Variables:"),
-        green(paste(design_vars, collapse=", ")), "\n")
+    design_vars <- design_vars[design_vars != ".index"]
+    cat("| ", crayon::bold("Design Variables:"),
+        crayon::green(paste(design_vars, collapse=", ")), "\n")
 
     # Sample of unique values for each design variable
-    cat("│ ", bold("Design Structure:"), "\n")
+    cat("| ", crayon::bold("Design Structure:"), "\n")
     for (var in design_vars) {
       unique_vals <- unique(block$design[[var]])
       n_unique <- length(unique_vals)
@@ -639,20 +726,20 @@ print.hyperdesign <- function(x, ...) {
       } else {
         paste(unique_vals, collapse=", ")
       }
-      cat("│   ", white("•"), " ", var, ": ",
-          green(n_unique), " levels (", sample_vals, ")\n", sep="")
+      cat("|   ", crayon::white("*"), " ", var, ": ",
+          crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
     }
 
     # Column design if present
     if (!is.null(block$column_design)) {
-      cat("│ ", bold("Column Design:"), "Present\n")
+      cat("| ", crayon::bold("Column Design:"), "Present\n")
       col_vars <- names(block$column_design)
-      cat("│   Variables: ", green(paste(col_vars, collapse=", ")), "\n")
+      cat("|   Variables: ", crayon::green(paste(col_vars, collapse=", ")), "\n")
     }
   }
 
   # Footer
-  cat(bold(blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n=======================\n")))
 
   invisible(x)
 }
@@ -672,7 +759,7 @@ print.foldlist <- function(x, ...) {
   n_folds <- length(x)
 
   # Header
-  cat(crayon::bold(crayon::blue("\n═══ Cross-Validation Folds ═══\n")))
+  cat(crayon::bold(crayon::blue("\n=== Cross-Validation Folds ===\n")))
 
   # Basic information
   cat("\n", crayon::green(paste0("Number of Folds: ", n_folds)), "\n")
@@ -684,14 +771,18 @@ print.foldlist <- function(x, ...) {
     # Get fold details
     fold_info <- x[[i]]
 
-    # Analysis set information
-    analysis_size <- nrow(fold_info$analysis[[1]]$design)
-    cat("  ", crayon::white("•"), " Analysis Set: ",
+    # Analysis set information - handle both multidesign and hyperdesign
+    if (inherits(fold_info$analysis, "hyperdesign")) {
+      analysis_size <- sum(sapply(fold_info$analysis, function(b) nrow(b$design)))
+    } else {
+      analysis_size <- nrow(fold_info$analysis$design)
+    }
+    cat("  ", crayon::white("*"), " Analysis Set: ",
         crayon::green(analysis_size), " observations\n", sep="")
 
     # Assessment set information
     assessment_size <- nrow(fold_info$assessment$design)
-    cat("  ", crayon::white("•"), " Assessment Set: ",
+    cat("  ", crayon::white("*"), " Assessment Set: ",
         crayon::green(assessment_size), " observations\n", sep="")
 
     # Held out information if available
@@ -699,13 +790,13 @@ print.foldlist <- function(x, ...) {
       cat(crayon::bold("  Held Out Values:"), "\n")
       for (var in names(fold_info$held_out)) {
         val <- fold_info$held_out[[var]]
-        cat("    ", crayon::white("◦"), " ", var, ": ",
+        cat("    ", crayon::white("-"), " ", var, ": ",
             crayon::yellow(paste(val, collapse=", ")), "\n", sep="")
       }
     }
   }
 
   # Footer
-  cat(crayon::bold(crayon::blue("\n═════════════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n=============================\n")))
   invisible(x)
 }

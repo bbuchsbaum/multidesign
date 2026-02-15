@@ -39,9 +39,10 @@ block1_data <- xdata(hd, block=1)
 [design.hyperdesign()], [column_design.hyperdesign()]
 
 Other hyperdesign functions: 
+\code{\link{as_multidesign}()},
 \code{\link{design.hyperdesign}()},
 \code{\link{df_to_hyperdesign}()},
-\code{\link{hyperdesign}()},
+\code{\link{hyperdesign.list}()},
 \code{\link{init_transform.hyperdesign}()},
 \code{\link{subset.hyperdesign}()}
 }

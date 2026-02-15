@@ -1,101 +1,572 @@
 ---
-title: "Class Overview"
+title: "Class Reference and Design Patterns"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Class Overview}
+  %\VignetteIndexEntry{Class Reference and Design Patterns}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+set.seed(123)
+library(multidesign)
+library(tibble)
+library(dplyr)
 ```
 
-# Introduction
+# Overview
 
-This vignette provides a high level overview of the S3 classes implemented in
-**multidesign**.  Each class encapsulates a different way of representing
-multivariate data together with its associated experimental design.  The goal is
-to make it easy to switch between single data matrices and more complex
-multi–block structures while keeping a consistent interface.
+The `multidesign` package provides a family of S3 classes for representing multivariate experimental data. This vignette serves as a reference guide, documenting each class, its purpose, key methods, and typical usage patterns.
 
-# `multidesign`
+## Class hierarchy
 
-A `multidesign` object links a multivariate matrix `x` with a data frame of
-design variables.  Every row of `x` corresponds to a row in the design.  This is
-useful for standard single–block analyses where the observations share a common
-set of descriptors.
+```
+multidesign ─────────────────────── Core class: matrix + row design + column design
+     │
+     ├── reduced_multidesign ────── After dimensionality reduction
+     │
+     └── hyperdesign ────────────── Collection of multidesign blocks
+              │
+              └── as_multidesign() → Collapse back to single multidesign
+
+multiframe ──────────────────────── Lazy-evaluated observations + design
+
+multiblock ──────────────────────── Stacked matrices (row or column oriented)
+
+foldlist ────────────────────────── Cross-validation fold container
+
+cv_result ───────────────────────── Cross-validation results
+```
+
+## Choosing the right class
+
+```
+Do you have multiple subjects/sessions/modalities?
+├── YES → hyperdesign
+└── NO → Is your data expensive to load?
+         ├── YES → multiframe
+         └── NO → multidesign
+
+Do you need to stack matrices without design info?
+└── YES → multiblock
+```
+
+# multidesign
+
+## Purpose
+
+A `multidesign` is the fundamental class in the package. It binds together:
+
+- **Data matrix** (`x`): rows are observations, columns are variables
+- **Row design** (`design`): a tibble describing each observation
+- **Column design** (`column_design`): a tibble describing each variable (optional)
+
+## When to use
+
+- Standard single-block multivariate analysis
+- You need to subset or split data by experimental factors
+- You want cross-validation that respects design structure
+- Your variables have metadata (ROI names, feature types, etc.)
+
+## When NOT to use
+- You have multiple subjects/sessions → use `hyperdesign`
+- Your data is too large to load at once → use `multiframe`
+- You just need to stack matrices without design info → use `multiblock`
+
+## Construction
 
 ```{r}
-X <- matrix(rnorm(20 * 5), 20, 5)
-Y <- tibble(condition = rep(letters[1:4], 5))
-md <- multidesign(X, Y)
+# Data matrix: 30 observations x 10 variables
+X <- matrix(rnorm(30 * 10), 30, 10)
+
+# Row design: what describes each observation
+row_design <- tibble(
+  condition = rep(c("A", "B", "C"), each = 10),
+  block = rep(1:3, 10)
+)
+
+# Column design: what describes each variable (optional)
+col_design <- tibble(
+  variable = paste0("V", 1:10),
+  group = rep(c("group1", "group2"), 5)
+)
+
+# Create multidesign
+md <- multidesign(X, row_design, col_design)
 md
 ```
 
-# `reduced_multidesign`
+## Key methods
 
-The `reduced_multidesign` class extends `multidesign` and stores the result of a
-projection or dimension–reduction step.  It contains the reduced data and the
-projector used to obtain it.
+| Method | Description |
+|--------|-------------|
+| `xdata(x)` | Extract the data matrix |
+| `design(x)` | Extract row design (without internal `.index`) |
+| `column_design(x)` | Extract column design |
+| `subset(x, expr)` | Filter rows by design expression |
+| `split(x, ...)` | Split into list by design variables |
+| `select_variables(x, ...)` | Filter columns by column_design expression |
+| `summarize_by(x, ...)` | Compute group summaries |
+| `fold_over(x, ...)` | Create cross-validation folds |
+| `split_indices(x, ...)` | Get row indices grouped by design variables |
+
+## Examples
 
 ```{r}
-rd <- reduce(md, nc = 2)
-rd
+# Extract components
+dim(xdata(md))
+head(design(md), 3)
+column_design(md)
+
+# Subset by design
+md_A <- subset(md, condition == "A")
+nrow(xdata(md_A))
+
+# Select variables by column design
+md_g1 <- select_variables(md, group == "group1")
+ncol(xdata(md_g1))
+
+# Summarize by condition
+md_means <- summarize_by(md, condition)
+design(md_means)
+dim(xdata(md_means))
+
+# Create CV folds by condition
+folds <- fold_over(md, condition)
+length(folds)
 ```
 
-# `hyperdesign`
+---
 
-A `hyperdesign` is a collection of `multidesign` objects that share one or more
-common design variables.  It is suited for multiblock or multiview settings
-where each block represents a separate matrix but the blocks are related through
-shared variables.
+# reduced_multidesign
+## Purpose
+
+A `reduced_multidesign` extends `multidesign` to store the result of dimensionality reduction (e.g., PCA). It contains the reduced data and the projector used for the transformation.
+
+## When to use
+
+- After applying `reduce()` to a multidesign
+- When you need to project new data using the same transformation
+
+## Construction
 
 ```{r}
-hd <- hyperdesign(list(md, md))
+# Note: requires multivarious package for full functionality
+# Basic structure shown here
+md_small <- multidesign(
+  matrix(rnorm(50 * 20), 50, 20),
+  tibble(group = rep(letters[1:5], 10))
+)
+
+# reduce() performs PCA by default
+# rd <- reduce(md_small, nc = 3)
+# rd
+```
+
+The `reduce()` function requires the `multivarious` package. When called, it returns a `reduced_multidesign` with:
+
+- Reduced data matrix (observations × components)
+- Original design information
+- The projector object for transforming new data
+
+---
+
+# hyperdesign
+
+## Purpose
+
+A `hyperdesign` manages multiple `multidesign` objects (called "blocks") that share common design variables. This is the natural structure for multi-subject, multi-session, or multi-modal experiments.
+
+## When to use
+
+- Multiple subjects, each with their own data matrix
+- Multiple sessions or runs that should be analyzed together
+- Multi-view data (e.g., fMRI + EEG from the same experiment)
+- You want leave-one-block-out cross-validation
+
+## When NOT to use
+
+- Single-subject analysis → use `multidesign`
+- Blocks don't share any design structure → consider separate `multidesign` objects
+
+## Construction
+
+```{r}
+# Create individual subject data
+subj1 <- multidesign(
+  matrix(rnorm(20 * 5), 20, 5),
+  tibble(condition = rep(c("X", "Y"), 10), trial = 1:20)
+)
+
+subj2 <- multidesign(
+  matrix(rnorm(20 * 5), 20, 5),
+  tibble(condition = rep(c("X", "Y"), 10), trial = 1:20)
+)
+
+subj3 <- multidesign(
+  matrix(rnorm(20 * 5), 20, 5),
+  tibble(condition = rep(c("X", "Y"), 10), trial = 1:20)
+)
+
+# Combine into hyperdesign
+hd <- hyperdesign(
+  list(subj1, subj2, subj3),
+  block_names = c("subject_1", "subject_2", "subject_3")
+)
 hd
 ```
 
-# `multiblock`
+## Key methods
 
-The `multiblock` class represents a single matrix composed of stacked sub
-matrices that share either a row or column dimension.  It is a lower level
-format than `hyperdesign` and is mainly used when the blocks form one large
-matrix.
+| Method | Description |
+|--------|-------------|
+| `xdata(x)` / `xdata(x, block=i)` | Extract data (all blocks or specific block) |
+| `design(x)` / `design(x, block=i)` | Extract design (all blocks or specific block) |
+| `column_design(x)` | Extract column design |
+| `subset(x, expr)` | Filter all blocks by expression |
+| `select_variables(x, ...)` | Filter columns in all blocks |
+| `fold_over(x)` | Leave-one-block-out folds |
+| `fold_over(x, var)` | Within-block folds by variable |
+| `as_multidesign(x)` | Collapse to single multidesign |
+| `block_indices(x, i)` | Get indices for block i |
+
+## Examples
 
 ```{r}
-mb <- multiblock(list(X, X))
-mb
+# Access individual blocks
+length(hd)
+xdata(hd, block = 1)[1:3, ]
+
+# Access all designs
+designs <- design(hd)
+length(designs)
+
+# Leave-one-block-out cross-validation
+loso <- fold_over(hd)
+length(loso)
+
+# Each fold: analysis is a hyperdesign (n-1 blocks), assessment is a multidesign (1 block)
+f1 <- loso[[1]]
+length(f1$analysis)
+class(f1$assessment)
+
+# Within-block CV by condition
+within_folds <- fold_over(hd, condition)
+length(within_folds)
+
+# Collapse to single multidesign
+md_collapsed <- as_multidesign(hd, .id = "subject")
+nrow(xdata(md_collapsed))
+table(design(md_collapsed)$subject)
 ```
 
-# `multiframe`
-
-`multiframe` stores the design as its main component and represents each
-observation as a delayed computation via the `observation` class.  This is
-helpful when the underlying data are expensive to load into memory but the
-metadata can be manipulated using dplyr verbs.
+## Alternative construction: from data frame
 
 ```{r}
-mf <- multiframe(list(X[1:5,], X[6:10,]), tibble(run = c(1,2)))
+# If your data is in a wide-format data frame
+wide_df <- tibble(
+  subject = rep(1:2, each = 5),
+  condition = rep(c("A", "B", "A", "B", "A"), 2),
+  v1 = rnorm(10),
+  v2 = rnorm(10),
+  v3 = rnorm(10)
+)
+
+hd_from_df <- df_to_hyperdesign(
+  wide_df,
+  design_vars = c("condition"),
+  x_vars = c("v1", "v2", "v3"),
+  split_var = "subject"
+)
+hd_from_df
+```
+
+---
+
+# multiframe
+
+## Purpose
+
+A `multiframe` is similar to a `multidesign` but uses lazy evaluation for observations. Each observation is stored as a function that returns the data when called. This is useful when data is expensive to load or too large to hold entirely in memory.
+
+## When to use
+
+- Data files are large and you only need subsets at a time
+- Observations are loaded from disk on demand
+- You want to manipulate design metadata without loading all data
+
+## When NOT to use
+
+- Data fits easily in memory → use `multidesign` (simpler)
+- You need to operate on the full matrix frequently → use `multidesign`
+
+## Construction
+
+```{r}
+# From a matrix (each row becomes a lazy observation)
+X <- matrix(1:40, 10, 4)
+design_info <- tibble(
+  group = rep(c("A", "B"), 5),
+  id = 1:10
+)
+
+mf <- multiframe(X, design_info)
 mf
+
+# From a list (each element is a lazy observation)
+obs_list <- list(
+  matrix(1:12, 3, 4),
+  matrix(13:24, 3, 4),
+  matrix(25:36, 3, 4)
+)
+mf_list <- multiframe(obs_list, tibble(condition = c("X", "Y", "Z")))
 ```
 
-# `observation` and `observation_set`
+## Key methods
 
-`observation` objects are functions that return a single data slice when called.
-An `observation_set` is simply a list of `observation` objects.  They provide a
-light–weight way of lazily accessing individual observations from a larger data
-source.
+| Method | Description |
+|--------|-------------|
+| `design(x)` | Extract design (without `.obs` and `.index`) |
+| `xdata(x)` | Materialize all observations into a matrix |
+| `subset(x, expr)` | Filter by design (lazy observations preserved) |
+| `split(x, ...)` | Split by design variables |
+| `split_indices(x, ...)` | Get indices grouped by design |
+| `summarize_by(x, ...)` | Compute group summaries |
+| `fold_over(x, ...)` | Create cross-validation folds |
 
-# `foldlist`
+## Examples
 
-A `foldlist` is returned by `fold_over()` and represents a set of cross
-validation folds.  Each element contains an analysis set and an assessment set,
-both expressed using the same classes described above.
+```{r}
+# Design without internal columns
+design(mf)
 
-# Summary
+# Materialize all data (evaluates all lazy observations)
+mat <- xdata(mf)
+dim(mat)
 
-These classes work together to support flexible representations of complex
-experimental designs.  Starting with a simple `multidesign`, you can build
-`hyperdesign` objects, perform cross–validation with `foldlist`, or defer data
-loading with `multiframe` and `observation`.
+# Subset (lazy observations remain lazy)
+mf_A <- subset(mf, group == "A")
+nrow(mf_A$design)
+
+# Access individual observations lazily
+mf$design$.obs[[1]]()
+
+# Create CV folds
+mf_folds <- fold_over(mf, group)
+length(mf_folds)
+```
+
+---
+
+# multiblock
+
+## Purpose
+
+A `multiblock` represents a collection of matrices that share either a row dimension (column-stacked) or a column dimension (row-stacked). It's a lower-level structure than `hyperdesign`, useful when you need to work with the combined matrix directly.
+
+## When to use
+
+- Matrices that should be stacked into one large matrix
+- Block-wise operations on combined data
+- Input to multi-block statistical methods
+
+## When NOT to use
+
+- You need design metadata → use `hyperdesign`
+- Matrices don't share a dimension → can't be stacked
+
+## Construction
+
+```{r}
+# Column-stacked: same number of rows, different columns
+A1 <- matrix(1:12, 4, 3)
+A2 <- matrix(13:20, 4, 2)
+mb_col <- multiblock(list(A1, A2))
+mb_col
+
+# Row-stacked: same number of columns, different rows
+B1 <- matrix(1:10, 2, 5)
+B2 <- matrix(11:25, 3, 5)
+mb_row <- multiblock(list(B1, B2))
+mb_row
+```
+
+## Key methods
+
+| Method | Description |
+|--------|-------------|
+| `is_cstacked(x)` | Check if column-stacked |
+| `is_rstacked(x)` | Check if row-stacked |
+| `block_indices(x, i)` | Get indices for block i |
+| `t(x)` | Transpose (switches orientation) |
+
+## Examples
+
+```{r}
+# Check orientation
+is_cstacked(mb_col)
+is_rstacked(mb_row)
+
+# Get block indices
+block_indices(mb_col, 1)
+block_indices(mb_col, 2)
+
+# Transpose switches orientation
+mb_t <- t(mb_col)
+is_rstacked(mb_t)
+```
+
+---
+
+# foldlist
+
+## Purpose
+
+A `foldlist` is returned by `fold_over()` and contains cross-validation folds. Each fold has an analysis set (training data) and an assessment set (test data).
+## Structure
+
+Each element of a foldlist contains:
+
+- `analysis`: The training data (same class as input)
+- `assessment`: The test data (same class as input, or `multidesign` for hyperdesign assessment)
+- `held_out`: Information about what was held out (optional)
+
+## Examples
+
+```{r}
+md <- multidesign(
+  matrix(rnorm(40), 10, 4),
+  tibble(group = rep(c("A", "B"), 5))
+)
+
+folds <- fold_over(md, group)
+folds
+
+# Access a specific fold
+f1 <- folds[[1]]
+names(f1)
+
+# Training and test sets
+nrow(xdata(f1$analysis))
+nrow(xdata(f1$assessment))
+
+# The foldframe attribute contains fold metadata
+attr(folds, "foldframe")
+```
+
+---
+
+# cv_result
+
+## Purpose
+
+A `cv_result` object stores the results of cross-validation executed via `cross_validate()`. It contains per-fold scores and provides methods for summarizing performance.
+
+## Structure
+
+- `scores`: A tibble with a `.fold` column and one or more metric columns
+- `call`: The original call to `cross_validate()` (optional)
+
+## Key methods
+
+| Method | Description |
+|--------|-------------|
+| `print(x)` | Display fold count and metric summaries |
+| `summary(x)` | Return tibble with mean/sd/min/max/median per metric |
+
+## Examples
+
+```{r}
+# Run cross-validation
+md <- multidesign(
+  matrix(rnorm(60), 15, 4),
+  tibble(condition = rep(c("A", "B", "C"), 5))
+)
+folds <- fold_over(md, condition)
+
+cv_res <- cross_validate(
+  folds,
+  fit_fn = function(analysis) {
+    list(center = colMeans(xdata(analysis)))
+  },
+  score_fn = function(model, assessment) {
+    mat <- xdata(assessment)
+    pred <- matrix(model$center, nrow = nrow(mat), ncol = ncol(mat), byrow = TRUE)
+    c(mse = mean((mat - pred)^2), mae = mean(abs(mat - pred)))
+  }
+)
+
+# Print summary
+cv_res
+
+# Detailed summary
+summary(cv_res)
+
+# Access raw scores
+cv_res$scores
+```
+
+---
+
+# Combining and converting between classes
+
+## bind_multidesign: Combine multiple multidesign objects
+
+```{r}
+md1 <- multidesign(matrix(1:10, 5, 2), tibble(g = rep("A", 5)))
+md2 <- multidesign(matrix(11:20, 5, 2), tibble(g = rep("B", 5)))
+
+# Bind with source tracking
+combined <- bind_multidesign(md1, md2, .id = "source")
+design(combined)
+
+# Also accepts hyperdesign (expands blocks first)
+hd <- hyperdesign(list(md1, md2))
+md3 <- multidesign(matrix(21:30, 5, 2), tibble(g = rep("C", 5)))
+combined2 <- bind_multidesign(hd, md3)
+nrow(xdata(combined2))
+```
+
+## as_multidesign: Collapse hyperdesign
+
+```{r}
+hd <- hyperdesign(
+  list(
+    multidesign(matrix(1:10, 5, 2), tibble(cond = c("X", "X", "Y", "Y", "Y"))),
+    multidesign(matrix(11:20, 5, 2), tibble(cond = c("X", "X", "Y", "Y", "Y")))
+  ),
+  block_names = c("block1", "block2")
+)
+
+# Collapse to single multidesign
+md_flat <- as_multidesign(hd, .id = "block")
+design(md_flat)
+```
+
+---
+
+# Method availability summary
+
+| Method | multidesign | hyperdesign | multiframe | multiblock |
+|--------|:-----------:|:-----------:|:----------:|:----------:|
+| `xdata()` | ✓ | ✓ | ✓ | - |
+| `design()` | ✓ | ✓ | ✓ | - |
+| `column_design()` | ✓ | ✓ | - | - |
+| `subset()` | ✓ | ✓ | ✓ | - |
+| `split()` | ✓ | - | ✓ | - |
+| `select_variables()` | ✓ | ✓ | - | - |
+| `summarize_by()` | ✓ | - | ✓ | - |
+| `fold_over()` | ✓ | ✓ | ✓ | - |
+| `split_indices()` | ✓ | - | ✓ | - |
+| `block_indices()` | - | ✓ | - | ✓ |
+| `is_cstacked()` | - | - | - | ✓ |
+| `is_rstacked()` | - | - | - | ✓ |
+
+---
+
+# Session info
+
+```{r}
+sessionInfo()
+```

@@ -157,3 +157,148 @@ test_that("multiframe summarization works correctly", {
   expect_equal(nrow(sum_extract), 2)
   expect_equal(ncol(sum_extract), ncol(x))
 })
+
+# --- Regression tests ---
+
+test_that("obs_group matrix with custom ind validates using nrow", {
+  X <- matrix(1:20, 5, 4)
+  ind <- c(10, 20, 30, 40, 50)
+  obs <- obs_group(X, ind=ind)
+  expect_s3_class(obs, "observation_set")
+  expect_length(obs, 5)
+})
+
+test_that("observation dispatches for numeric vectors", {
+  v <- c(1.0, 2.0, 3.0)
+  obs <- observation(v, 1)
+  expect_true(is.function(obs))
+  expect_equal(obs(), v)
+})
+
+test_that("observation.matrix returns proper matrix with drop=FALSE", {
+  X <- matrix(1:20, 5, 4)
+  obs <- observation(X, 3)
+  result <- obs()
+  expect_true(is.matrix(result))
+  expect_equal(nrow(result), 1)
+  expect_equal(ncol(result), 4)
+  expect_equal(as.numeric(result), as.numeric(X[3, ]))
+})
+
+# --- Multiframe method parity tests ---
+
+test_that("design.multiframe strips .obs and .index", {
+  X <- matrix(rnorm(20 * 4), 20, 4)
+  Y <- data.frame(condition = rep(c("A", "B"), each = 10), subject = rep(1:10, 2))
+  mf <- multiframe(X, Y)
+  des <- design(mf)
+  expect_false(".obs" %in% names(des))
+  expect_false(".index" %in% names(des))
+  expect_true("condition" %in% names(des))
+  expect_true("subject" %in% names(des))
+  expect_equal(nrow(des), 20)
+})
+
+test_that("xdata.multiframe materializes correct matrix", {
+  X <- matrix(1:40, 10, 4)
+  Y <- data.frame(condition = rep(c("A", "B"), each = 5))
+  mf <- multiframe(X, Y)
+  mat <- xdata(mf)
+  expect_true(is.matrix(mat))
+  expect_equal(dim(mat), c(10, 4))
+  expect_equal(mat, X)
+})
+
+test_that("split_indices.multiframe works", {
+  X <- matrix(rnorm(40), 10, 4)
+  Y <- data.frame(condition = rep(c("A", "B"), each = 5))
+  mf <- multiframe(X, Y)
+  si <- split_indices(mf, condition)
+  expect_equal(nrow(si), 2)
+  expect_true("indices" %in% names(si))
+  expect_equal(sort(unlist(si$indices)), 1:10)
+})
+
+test_that("subset.multiframe filters correctly and returns NULL on empty", {
+  X <- matrix(rnorm(40), 10, 4)
+  Y <- data.frame(
+    condition = rep(c("A", "B"), each = 5),
+    subject = 1:10
+  )
+  mf <- multiframe(X, Y)
+
+  mf_A <- subset(mf, condition == "A")
+  expect_s3_class(mf_A, "multiframe")
+  expect_equal(nrow(mf_A$design), 5)
+  expect_true(all(mf_A$design$condition == "A"))
+
+  # .index should be reset
+
+  expect_equal(mf_A$design$.index, 1:5)
+
+  # Observations should still work
+  obs1 <- mf_A$design$.obs[[1]]()
+  expect_true(is.matrix(obs1) || is.numeric(obs1))
+
+  # Empty result
+  mf_none <- subset(mf, condition == "C")
+  expect_null(mf_none)
+})
+
+test_that("fold_over.multiframe creates valid folds with correct sizes", {
+  X <- matrix(rnorm(40), 10, 4)
+  Y <- data.frame(condition = rep(c("A", "B"), each = 5))
+  mf <- multiframe(X, Y)
+
+  folds <- fold_over(mf, condition)
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 2)
+
+  f1 <- folds[[1]]
+  expect_s3_class(f1$analysis, "multiframe")
+  expect_s3_class(f1$assessment, "multiframe")
+  expect_equal(
+    nrow(f1$analysis$design) + nrow(f1$assessment$design),
+    10
+  )
+  # Each assessment set should have 5 observations
+  expect_equal(nrow(f1$assessment$design), 5)
+})
+
+test_that("[.observation_set extracts multiple observations", {
+  X <- matrix(1:20, 5, 4)
+  obs <- obs_group(X)
+
+  # Extract subset using [ operator
+  sub <- obs[1:3]
+  expect_type(sub, "list")
+  expect_length(sub, 3)
+  # Each element should be an evaluated observation (matrix)
+  expect_true(is.matrix(sub[[1]]))
+  expect_equal(as.numeric(sub[[1]]), as.numeric(X[1, ]))
+  expect_equal(as.numeric(sub[[3]]), as.numeric(X[3, ]))
+})
+
+test_that("observation.deflist creates lazy observations", {
+  dl <- deflist::deflist(function(i) matrix(i * 10, 1, 3), len = 4)
+  obs <- observation(dl, 2)
+  expect_true(is.function(obs))
+  result <- obs()
+  expect_equal(result, dl[[2]])
+})
+
+test_that("print.observation_set does not error", {
+  X <- matrix(rnorm(20), 5, 4)
+  obs <- obs_group(X)
+  expect_output(print(obs), "Observation Set")
+})
+
+test_that("print.multiframe does not error", {
+  X <- matrix(rnorm(40), 10, 4)
+  Y <- data.frame(
+    condition = rep(c("A", "B"), each = 5),
+    subject = 1:10
+  )
+  mf <- multiframe(X, Y)
+  expect_output(print(mf), "Multiframe Object")
+})

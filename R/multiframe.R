@@ -156,6 +156,138 @@ multiframe.matrix <- function(x, y, ...) {
   structure(list(design=des), class="multiframe")
 }
 
+#' @rdname design
+#' @export
+design.multiframe <- function(x, ...) {
+  des <- x$design
+  des$.obs <- NULL
+  des$.index <- NULL
+  des
+}
+
+#' Extract Data Matrix from a Multiframe Object
+#'
+#' @description
+#' Materializes all lazy-evaluated observations into a single data matrix.
+#' Each observation is evaluated and the results are row-bound together.
+#'
+#' @param x A multiframe object
+#' @param ... Additional arguments (not used)
+#' @return A matrix containing all materialized observations
+#'
+#' @examples
+#' X <- matrix(rnorm(20 * 5), 20, 5)
+#' Y <- data.frame(condition = rep(c("A", "B"), each = 10))
+#' mf <- multiframe(X, Y)
+#' mat <- xdata(mf)  # Returns the full 20x5 matrix
+#'
+#' @family multiframe functions
+#' @export
+xdata.multiframe <- function(x, ...) {
+  do.call(rbind, lapply(x$design$.obs, function(f) f()))
+}
+
+#' @rdname split_indices
+#' @export
+#' @importFrom tidyr unite
+#' @importFrom dplyr across
+#' @importFrom tidyselect where any_of
+split_indices.multiframe <- function(x, ..., collapse = FALSE) {
+  nest.by <- rlang::quos(...)
+
+  # Work with the design, excluding .obs; keep .index for indices
+  design_copy <- x$design
+  design_copy$.obs <- NULL
+
+  # Convert numeric variables to factors for proper grouping, excluding .index
+  design_copy <- design_copy %>%
+    dplyr::mutate(dplyr::across(tidyselect::where(is.numeric) & !tidyselect::any_of(".index"), as.factor))
+
+  ret <- design_copy %>% dplyr::nest_by(!!!nest.by, .keep = TRUE)
+  xl <- ret$data %>% purrr::map(~ .x$.index)
+
+  # Get group variable names
+  group_vars <- colnames(ret %>% dplyr::select(dplyr::group_vars(ret)))
+
+  # Create .splitvar by uniting all group variables with underscore
+  selret <- ret %>% dplyr::select(dplyr::group_vars(ret))
+  out <- selret %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+      indices = xl,
+      .splitvar = if (length(group_vars) > 0) {
+        tidyr::unite(selret, "temp", dplyr::all_of(group_vars), sep = "_") %>% dplyr::pull(temp)
+      } else {
+        rep("all", nrow(selret))
+      }
+    )
+
+  out
+}
+
+#' Subset a Multiframe Object
+#'
+#' @description
+#' Creates a new multiframe object containing only observations that meet
+#' specified conditions based on design variables. The lazy-evaluated
+#' observation closures remain valid in the subset.
+#'
+#' @param x A multiframe object
+#' @param fexpr An expression used to filter observations based on design variables
+#' @param ... Additional arguments (not used)
+#'
+#' @return A new multiframe object containing only matching observations,
+#'   or NULL if no matches
+#'
+#' @examples
+#' X <- matrix(rnorm(20 * 5), 20, 5)
+#' Y <- data.frame(
+#'   condition = rep(c("A", "B"), each = 10),
+#'   block = rep(1:4, each = 5)
+#' )
+#' mf <- multiframe(X, Y)
+#' mf_A <- subset(mf, condition == "A")
+#'
+#' @family multiframe functions
+#' @export
+subset.multiframe <- function(x, fexpr, ...) {
+  des2 <- dplyr::filter(x$design, !!rlang::enquo(fexpr))
+  if (nrow(des2) == 0) {
+    return(NULL)
+  }
+  des2$.index <- seq_len(nrow(des2))
+  structure(list(design = des2), class = "multiframe")
+}
+
+#' @rdname fold_over
+#' @export
+fold_over.multiframe <- function(x, ...) {
+  args <- rlang::enquos(...)
+  splits <- split_indices(x, !!!args)
+  foldframe <- splits %>% dplyr::mutate(.fold = seq_len(dplyr::n()))
+
+  extract <- function(i) {
+    ind <- unlist(foldframe[["indices"]][[i]])
+
+    test_des <- x$design[ind, , drop = FALSE]
+    test_des$.index <- seq_len(nrow(test_des))
+    testdat <- structure(list(design = test_des), class = "multiframe")
+
+    train_des <- x$design[-ind, , drop = FALSE]
+    train_des$.index <- seq_len(nrow(train_des))
+    traindat <- structure(list(design = train_des), class = "multiframe")
+
+    list(analysis = traindat, assessment = testdat)
+  }
+
+  tlen <- nrow(foldframe)
+  ret <- deflist::deflist(extract, len = tlen)
+  names(ret) <- paste0("fold_", seq_along(ret))
+  class(ret) <- c("foldlist", class(ret))
+  attr(ret, "foldframe") <- foldframe
+  ret
+}
+
 #' Create an Observation Group
 #'
 #' @title Create a Group of Observations from Matrix or List Data
@@ -190,20 +322,20 @@ obs_group <- function(X, fun=NULL, ind=NULL) {
 
   ret <- if (inherits(X, "list") || inherits(X, "deflist")) {
     if (is.null(ind)) {
-      ind <- 1:length(X)
+      ind <- seq_along(X)
     } else {
       chk::chk_equal(length(X), length(ind))
     }
-    lapply(1:length(X), function(i) {
+    lapply(seq_along(X), function(i) {
       observation.list(X, ind[i])
     })
   } else {
     if (is.null(ind)) {
-      ind <- 1:nrow(X)
+      ind <- seq_len(nrow(X))
     } else {
-      chk::chk_equal(length(X), length(ind))
+      chk::chk_equal(nrow(X), length(ind))
     }
-    lapply(1:nrow(X), function(i) {
+    lapply(seq_len(nrow(X)), function(i) {
       observation.matrix(X, ind[i])
     })
   }
@@ -245,16 +377,7 @@ obs_group <- function(X, fun=NULL, ind=NULL) {
   lapply(z, function(zi) zi())
 }
 
-#' Create Observation from Deflist
-#'
-#' @description
-#' Creates a lazy-evaluated observation from a deflist object.
-#'
-#' @param x A deflist object
-#' @param i Index of the observation to create
-#' @return An observation object (function) that returns the data when called
-#'
-#' @family multiframe functions
+#' @rdname observation
 #' @export
 observation.deflist <- function(x, i) {
   function() {
@@ -262,18 +385,9 @@ observation.deflist <- function(x, i) {
   }
 }
 
-#' Create Observation from Vector
-#'
-#' @description
-#' Creates a lazy-evaluated observation from a vector.
-#'
-#' @param x A vector
-#' @param i Index (ignored for vectors, as they represent a single observation)
-#' @return An observation object (function) that returns the vector when called
-#'
-#' @family multiframe functions
+#' @rdname observation
 #' @export
-observation.vector <- function(x,i) {
+observation.default <- function(x, i) {
   chk::chk_scalar(i)
   f <- function() {
     x
@@ -282,33 +396,15 @@ observation.vector <- function(x,i) {
   structure(f, i=i, class="observation")
 }
 
-#' Create Observation from Matrix
-#'
-#' @description
-#' Creates a lazy-evaluated observation from a row of a matrix.
-#'
-#' @param x A matrix
-#' @param i Row index of the observation to create
-#' @return An observation object (function) that returns the matrix row when called
-#'
-#' @family multiframe functions
+#' @rdname observation
 #' @export
 observation.matrix <- function(x, i) {
   function() {
-    matrix(x[i,], nrow=1)  # Ensure output is a 1xn matrix
+    x[i, , drop=FALSE]
   }
 }
 
-#' Create Observation from List
-#'
-#' @description
-#' Creates a lazy-evaluated observation from a list element.
-#'
-#' @param x A list
-#' @param i Index of the list element to create as an observation
-#' @return An observation object (function) that returns the list element when called
-#'
-#' @family multiframe functions
+#' @rdname observation
 #' @export
 observation.list <- function(x, i) {
   function() {
@@ -389,7 +485,7 @@ summarize_by.multiframe <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
   })
 
   if (extract_data) {
-    ret <- do.call(rbind, ret$data %>% purrr::map(~ .x))
+    ret <- do.call(rbind, ret$data)
   }
 
   ret

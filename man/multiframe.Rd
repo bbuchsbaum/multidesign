@@ -33,7 +33,7 @@ operations. Key features include:
 \examples{
 # Create sample data
 X <- matrix(rnorm(20*100), 20, 100)
-Y <- tibble(condition = rep(letters[1:5], 4))
+Y <- tibble::tibble(condition = rep(letters[1:5], 4))
 
 # Create multiframe object
 mf <- multiframe(X, Y)

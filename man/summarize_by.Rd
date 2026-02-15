@@ -4,14 +4,14 @@
 \alias{summarize_by}
 \title{Summarize Data Over Grouping Variables}
 \usage{
-summarize_by(x, sfun, ...)
+summarize_by(x, ...)
 }
 \arguments{
 \item{x}{The multivariate data (a matrix, multidesign, multiframe, or other data container)}
 
-\item{sfun}{The columnwise summary function (e.g., `colMeans`, `colSums`, etc.)}
-
-\item{...}{Unquoted names of variables to group by, or for matrices, the grouping variables}
+\item{...}{Method-specific arguments. For multidesign/multiframe: unquoted names of variables
+to group by, plus optional `sfun` (summary function, default `colMeans`) and
+`extract_data` (logical). For matrices: the grouping variables.}
 }
 \value{
 For multidesign/multiframe objects: a new object of the same class with summarized data.
@@ -32,11 +32,9 @@ For each unique combination of grouping variables, the summary function is appli
 to the corresponding subset of observations.
 }
 \examples{
+# With a multidesign object
 X <- matrix(rnorm(100*10), 100, 10)
 groups <- rep(letters[1:5], each=20)
-group_means <- summarize_by(X, colMeans, groups)
-
-# With a multidesign object
 mds <- multidesign(X, data.frame(group=groups))
 mds_means <- summarize_by(mds, group)
 

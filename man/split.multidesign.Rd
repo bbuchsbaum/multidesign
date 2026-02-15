@@ -4,14 +4,16 @@
 \alias{split.multidesign}
 \title{Split a Multidesign Object by Design Variables}
 \usage{
-\method{split}{multidesign}(x, ..., collapse = FALSE)
+\method{split}{multidesign}(x, f, drop = FALSE, ...)
 }
 \arguments{
 \item{x}{A multidesign object}
 
-\item{...}{Unquoted names of variables to split by}
+\item{f}{Unquoted name of the first variable to split by}
 
-\item{collapse}{Logical; whether to collapse the resulting list}
+\item{drop}{Logical; unused, present for compatibility with the generic}
+
+\item{...}{Additional unquoted names of variables to split by}
 }
 \value{
 A list of multidesign objects, one for each combination of splitting variables
@@ -22,7 +24,7 @@ design variables.
 }
 \examples{
 X <- matrix(rnorm(100*20), 100, 20)
-Y <- tibble(
+Y <- tibble::tibble(
   condition = rep(c("A", "B"), each=50),
   block = rep(1:2, times=50)
 )
@@ -39,12 +41,10 @@ split_by_both <- split(mds, condition, block)
 \code{\link{subset.multidesign}}
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{multidesign}()},
 \code{\link{reduce.multidesign}()},
 \code{\link{split_indices.multidesign}()},
 \code{\link{subset.multidesign}()},
-\code{\link{summarize_by.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{summarize_by.multidesign}()}
 }
 \concept{multidesign functions}

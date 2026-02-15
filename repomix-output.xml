@@ -45,12 +45,14 @@ The content is organized as follows:
 <directory_structure>
 R/
   all_generic.R
+  bind_multidesign.R
   hyperdesign.R
   multiblock.R
   multidesign.R
   multiframe.R
 tests/
   testthat/
+    test-bind_multidesign.R
     test-hyperdesign.R
     test-multiblock.R
     test-multidesign.R
@@ -62,6 +64,91 @@ README.Rmd
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="R/bind_multidesign.R">
+#' Combine multiple multidesign objects
+#'
+#' This function row-binds the observation matrices and design data frames
+#' of several multidesign objects. All input multidesigns must share the
+#' same column design. Optionally, an identifier column can be added to
+#' track the source of each observation.
+#'
+#' @param ... multidesign objects to combine
+#' @param .id optional name of an identifier column added to the design
+#'   to indicate the origin multidesign
+#'
+#' @return A new multidesign object containing the concatenated data
+#' @export
+bind_multidesign <- function(..., .id = NULL) {
+  mds_list <- list(...)
+  if (length(mds_list) == 1 && is.list(mds_list[[1]])) {
+    mds_list <- mds_list[[1]]
+  }
+  if (length(mds_list) < 1) {
+    stop("no multidesign objects supplied")
+  }
+  if (!all(sapply(mds_list, inherits, "multidesign"))) {
+    stop("all inputs must be multidesign objects")
+  }
+
+  base_cd <- mds_list[[1]]$column_design
+  for (md in mds_list[-1]) {
+    if (!identical(base_cd, md$column_design)) {
+      stop("column designs must be identical across multidesigns")
+    }
+  }
+
+  X <- do.call(rbind, lapply(mds_list, function(md) md$x))
+  design_list <- lapply(seq_along(mds_list), function(i) {
+    des <- mds_list[[i]]$design
+    if (!is.null(.id)) des[[.id]] <- i
+    des
+  })
+  design_df <- dplyr::bind_rows(design_list)
+  multidesign(X, design_df, base_cd)
+}
+</file>
+
+<file path="tests/testthat/test-bind_multidesign.R">
+library(testthat)
+library(tibble)
+
+# Test for successful binding of multidesign objects
+
+test_that("bind_multidesign merges objects and adds id column", {
+  X1 <- matrix(1:6, nrow = 3)
+  X2 <- matrix(7:12, nrow = 3)
+  design1 <- tibble(group = letters[1:3])
+  design2 <- tibble(group = letters[4:6])
+  col_design <- tibble(feature = 1:2)
+
+  md1 <- multidesign(X1, design1, col_design)
+  md2 <- multidesign(X2, design2, col_design)
+
+  out <- bind_multidesign(md1, md2, .id = "src")
+
+  expect_equal(nrow(out$x), 6)
+  expect_equal(out$design$src, c(rep(1, 3), rep(2, 3)))
+  expect_equal(out$column_design, col_design)
+})
+
+# Test for mismatched column designs
+
+test_that("bind_multidesign fails with mismatched column designs", {
+  X1 <- matrix(1:6, nrow = 3)
+  X2 <- matrix(7:12, nrow = 3)
+  design1 <- tibble(group = letters[1:3])
+  design2 <- tibble(group = letters[4:6])
+  col_design1 <- tibble(feature = 1:2)
+  col_design2 <- tibble(feature = 1:3)
+
+  md1 <- multidesign(X1, design1, col_design1)
+  md2 <- multidesign(X2, design2, col_design2)
+
+  expect_error(bind_multidesign(md1, md2),
+               "column designs must be identical across multidesigns")
+})
+</file>
 
 <file path="tests/testthat/test-hyperdesign.R">
 library(tibble)
@@ -264,102 +351,6 @@ test_that("subsetting works correctly", {
   expect_true(all(sapply(subset_A1, function(x) {
     all(x$design$condition == "A" & x$design$subject == 1)
   })))
-})
-</file>
-
-<file path="tests/testthat/test-multiblock.R">
-test_that("multiblock creation works correctly", {
-  # Test column-stacked multiblock (same number of rows)
-  X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:24, 4, 3)
-  X3 <- matrix(25:36, 4, 3)
-  mb_c <- multiblock(list(X1, X2, X3))
-  
-  expect_s3_class(mb_c, "multiblock")
-  expect_s3_class(mb_c, "multiblock_c")
-  expect_equal(attr(mb_c, "orient"), "cstacked")
-  expect_equal(dim(attr(mb_c, "ind")), c(3, 2))  # 3 blocks, start/end indices
-  
-  # Test row-stacked multiblock (same number of columns)
-  Y1 <- matrix(1:10, 2, 5)
-  Y2 <- matrix(11:25, 3, 5)
-  Y3 <- matrix(26:35, 2, 5)
-  mb_r <- multiblock(list(Y1, Y2, Y3))
-  
-  expect_s3_class(mb_r, "multiblock")
-  expect_s3_class(mb_r, "multiblock_r")
-  expect_equal(attr(mb_r, "orient"), "rstacked")
-  expect_equal(dim(attr(mb_r, "ind")), c(3, 2))  # 3 blocks, start/end indices
-})
-
-test_that("block_indices extraction works", {
-  X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:24, 4, 3)
-  X3 <- matrix(25:36, 4, 3)
-  mb_c <- multiblock(list(X1, X2, X3))
-  
-  # Test indices for column-stacked blocks
-  expect_equal(block_indices(mb_c, 1), 1:3)     # First block columns
-  expect_equal(block_indices(mb_c, 2), 4:6)     # Second block columns
-  expect_equal(block_indices(mb_c, 3), 7:9)     # Third block columns
-  
-  # Test row-stacked indices
-  Y1 <- matrix(1:10, 2, 5)
-  Y2 <- matrix(11:25, 3, 5)
-  Y3 <- matrix(26:35, 2, 5)
-  mb_r <- multiblock(list(Y1, Y2, Y3))
-  
-  # For row-stacked blocks, indices represent rows
-  expect_equal(block_indices(mb_r, 1), 1:2)     # First block rows
-  expect_equal(block_indices(mb_r, 2), 3:5)     # Second block rows
-  expect_equal(block_indices(mb_r, 3), 6:7)     # Third block rows
-})
-
-test_that("stacking orientation checks work", {
-  X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:24, 4, 3)
-  mb_c <- multiblock(list(X1, X2))
-  
-  expect_true(is_cstacked(mb_c))
-  expect_false(is_rstacked(mb_c))
-  
-  Y1 <- matrix(1:10, 2, 5)
-  Y2 <- matrix(11:25, 3, 5)
-  mb_r <- multiblock(list(Y1, Y2))
-  
-  expect_true(is_rstacked(mb_r))
-  expect_false(is_cstacked(mb_r))
-})
-
-test_that("multiblock handles errors correctly", {
-  # Test error for matrices with no shared dimensions
-  X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:20, 2, 4)
-  expect_error(
-    multiblock(list(X1, X2)),
-    "all matrices must share either row or column dimension"
-  )
-  
-  # Test error for non-matrix inputs
-  expect_error(
-    multiblock(list(1:3, 4:6)),
-    "Not all elements are matrices"
-  )
-  
-  # Test error for empty list
-  expect_error(
-    multiblock(list()),
-    "List is empty"
-  )
-  
-  # Test error for out of range block index
-  X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:24, 4, 3)
-  mb <- multiblock(list(X1, X2))
-  expect_error(
-    block_indices(mb, 3),
-    "`i` must be between 1 and 2, not 3"
-  )
 })
 </file>
 
@@ -641,6 +632,38 @@ test_that("multiframe summarization works correctly", {
   expect_equal(nrow(sum_extract), 2)
   expect_equal(ncol(sum_extract), ncol(x))
 })
+</file>
+
+<file path="tests/testthat.R">
+library(testthat)
+library(multidesign)
+
+test_check("multidesign")
+</file>
+
+<file path="README.Rmd">
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# multidesign
+
+<!-- badges: start -->
+[![Codecov test coverage](https://codecov.io/gh/bbuchsbaum/multidesign/branch/master/graph/badge.svg)](https://codecov.io/gh/bbuchsbaum/multidesign?branch=master)
+<!-- badges: end -->
+
+The goal of multidesign is to ...
 </file>
 
 <file path="R/multiframe.R">
@@ -1147,36 +1170,129 @@ print.multiframe <- function(x, ...) {
 }
 </file>
 
-<file path="tests/testthat.R">
+<file path="tests/testthat/test-multiblock.R">
 library(testthat)
-library(multidesign)
 
-test_check("multidesign")
-</file>
+# Test for orientation detection in multiblock
 
-<file path="README.Rmd">
----
-output: github_document
----
+test_that("multiblock correctly detects orientation", {
+  A1 <- matrix(1:6, nrow = 2)
+  A2 <- matrix(7:12, nrow = 2)
+  mb_c <- multiblock(list(A1, A2))
+  expect_true(is_cstacked(mb_c))
+  expect_false(is_rstacked(mb_c))
 
-<!-- README.md is generated from README.Rmd. Please edit that file -->
+  B1 <- matrix(1:6, ncol = 2)
+  B2 <- matrix(7:12, ncol = 2)
+  mb_r <- multiblock(list(B1, B2))
+  expect_true(is_rstacked(mb_r))
+  expect_false(is_cstacked(mb_r))
+})
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  fig.path = "man/figures/README-",
-  out.width = "100%"
-)
-```
+test_that("multiblock creation works correctly", {
+  # Test column-stacked multiblock (same number of rows)
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  X3 <- matrix(25:36, 4, 3)
+  mb_c <- multiblock(list(X1, X2, X3))
+  
+  expect_s3_class(mb_c, "multiblock")
+  expect_s3_class(mb_c, "multiblock_c")
+  expect_equal(attr(mb_c, "orient"), "cstacked")
+  expect_equal(dim(attr(mb_c, "ind")), c(3, 2))  # 3 blocks, start/end indices
+  
+  # Test row-stacked multiblock (same number of columns)
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  Y3 <- matrix(26:35, 2, 5)
+  mb_r <- multiblock(list(Y1, Y2, Y3))
+  
+  expect_s3_class(mb_r, "multiblock")
+  expect_s3_class(mb_r, "multiblock_r")
+  expect_equal(attr(mb_r, "orient"), "rstacked")
+  expect_equal(dim(attr(mb_r, "ind")), c(3, 2))  # 3 blocks, start/end indices
+})
 
-# multidesign
+test_that("block_indices extraction works", {
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  X3 <- matrix(25:36, 4, 3)
+  mb_c <- multiblock(list(X1, X2, X3))
+  
+  # Test indices for column-stacked blocks
+  expect_equal(block_indices(mb_c, 1), 1:3)
+  expect_equal(block_indices(mb_c, 2), 4:6)
+  expect_equal(block_indices(mb_c, 3), 7:9)
+  
+  # Test indices for row-stacked blocks
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  Y3 <- matrix(26:35, 2, 5)
+  mb_r <- multiblock(list(Y1, Y2, Y3))
+  
+  expect_equal(block_indices(mb_r, 1), 1:2)
+  expect_equal(block_indices(mb_r, 2), 3:5)
+  expect_equal(block_indices(mb_r, 3), 6:7)
+})
 
-<!-- badges: start -->
-[![Codecov test coverage](https://codecov.io/gh/bbuchsbaum/multidesign/branch/master/graph/badge.svg)](https://codecov.io/gh/bbuchsbaum/multidesign?branch=master)
-<!-- badges: end -->
+test_that("is_cstacked and is_rstacked work correctly", {
+  # Column-stacked
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb_c <- multiblock(list(X1, X2))
+  
+  expect_true(is_cstacked(mb_c))
+  expect_false(is_rstacked(mb_c))
+  
+  # Row-stacked
+  Y1 <- matrix(1:10, 2, 5)
+  Y2 <- matrix(11:25, 3, 5)
+  mb_r <- multiblock(list(Y1, Y2))
+  
+  expect_false(is_cstacked(mb_r))
+  expect_true(is_rstacked(mb_r))
+})
 
-The goal of multidesign is to ...
+test_that("transpose works correctly", {
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb_c <- multiblock(list(X1, X2))
+  
+  mb_t <- t(mb_c)
+  expect_true(is_rstacked(mb_t))
+  expect_false(is_cstacked(mb_t))
+  expect_equal(nrow(mb_t[[1]]), 3)
+  expect_equal(ncol(mb_t[[1]]), 4)
+})
+
+test_that("multiblock handles errors correctly", {
+  # Empty list
+  expect_error(multiblock(list()), "List is empty")
+  
+  # Non-matrix elements
+  expect_error(
+    multiblock(list(1:10, matrix(1:10, 2, 5))),
+    "Not all elements are matrices"
+  )
+  
+  # Mismatched dimensions
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:18, 2, 3)  # Different number of rows
+  X3 <- matrix(19:24, 3, 2)  # Different number of columns
+  expect_error(
+    multiblock(list(X1, X2, X3)),
+    "all matrices must share either row or column dimension"
+  )
+  
+  # Invalid block index
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb <- multiblock(list(X1, X2))
+  expect_error(
+    block_indices(mb, 3),
+    "`i` must be between 1 and 2, not 3"
+  )
+})
 </file>
 
 <file path="R/multiblock.R">
@@ -1217,6 +1333,7 @@ block_index_mat2 <- function(x, byrow=FALSE) {
 #' across the entire combined matrix.
 #'
 #' @param x A list of matrices (base or Matrix class objects)
+#' @param ... Additional arguments (not used)
 #' @return A multiblock object with the following attributes:
 #'   * ind: matrix of start/end indices for each block
 #'   * orient: orientation of stacking ("cstacked" or "rstacked")
@@ -1242,7 +1359,7 @@ block_index_mat2 <- function(x, byrow=FALSE) {
 #' mb_r <- multiblock(list(Y1, Y2, Y3))  # row-stacked
 #' is_rstacked(mb_r)  # TRUE
 #' @export
-multiblock.list <- function(x) {
+multiblock.list <- function(x, ...) {
   if (length(x) == 0) {
     stop("List is empty")
   }
@@ -1284,6 +1401,7 @@ multiblock.list <- function(x) {
 #'
 #' @param x A multiblock object
 #' @param i Integer specifying which block's indices to retrieve
+#' @param ... Additional arguments (not used)
 #' @return Integer vector of indices for the specified block
 #' @family multiblock functions
 #' @method block_indices multiblock_list
@@ -1293,7 +1411,7 @@ multiblock.list <- function(x) {
 #' mb <- multiblock(list(matrix(1:10, 5, 2), matrix(11:20, 5, 2)))
 #' block_indices(mb, 1)
 #' block_indices(mb, 2)
-block_indices.multiblock_list <- function(x, i) {
+block_indices.multiblock_list <- function(x, i, ...) {
   chk::chk_range(i, c(1,length(x)))
   ind <- attr(x, "ind")
   seq(ind[i, 1], ind[i,2])
@@ -1418,7 +1536,7 @@ Imports:
     stats,
     utils,
     rlang
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.2.9000
 Suggests: 
     covr,
     testthat (>= 3.0.0),
@@ -1430,6 +1548,7 @@ VignetteBuilder: knitr
 </file>
 
 <file path="R/multidesign.R">
+#' @importFrom dplyr filter ungroup pull all_of
 #' @title Create a Multidesign Object from Matrix Data and Design Information
 #'
 #' @description
@@ -1481,7 +1600,7 @@ VignetteBuilder: knitr
 #' @importFrom dplyr mutate rowwise n
 #' @export
 #' @rdname multidesign
-multidesign.matrix <- function(x, y, column_design=NULL) {
+multidesign.matrix <- function(x, y, column_design=NULL, ...) {
   chk::chk_equal(nrow(x), nrow(y))
   chk::chk_s3_class(y, "data.frame")
   y <- as_tibble(y)
@@ -1720,11 +1839,12 @@ summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) 
 #' Returns the data matrix component of a multidesign object.
 #'
 #' @param x A multidesign object
+#' @param ... Additional arguments (not used)
 #' @return The data matrix stored in the multidesign object
 #'
 #' @family multidesign functions
 #' @export
-xdata.multidesign <- function(x) x$x
+xdata.multidesign <- function(x, ...) x$x
 
 #' Extract Design Information from a Multidesign Object
 #'
@@ -1732,11 +1852,12 @@ xdata.multidesign <- function(x) x$x
 #' Returns the design data frame component of a multidesign object.
 #'
 #' @param x A multidesign object
+#' @param ... Additional arguments (not used)
 #' @return The design data frame stored in the multidesign object
 #'
 #' @family multidesign functions
 #' @export
-design.multidesign <- function(x) x$design
+design.multidesign <- function(x, ...) x$design
 
 #' Extract the column design from a multidesign object
 #'
@@ -1991,7 +2112,7 @@ multidesign <- function(x, y, ...) UseMethod("multidesign")
 #' * Multiple response measures
 #'
 #' @param x A list of multidesign objects. Each instance should represent a related block of data
-#' @param ... Additional arguments passed to methods, such as block_names for naming each block
+#' @param block_names Optional character vector of names for each block
 #'
 #' @return A hyperdesign object with the following components:
 #'   \item{blocks}{List of multidesign objects}
@@ -2025,7 +2146,7 @@ multidesign <- function(x, y, ...) UseMethod("multidesign")
 #'   \code{\link{multidesign}} for the underlying multidesign structure,
 #'   \code{\link{multiblock}} for another multi-block data structure
 #' @export
-hyperdesign <- function(x, ...) UseMethod("hyperdesign")
+hyperdesign <- function(x, block_names = NULL) UseMethod("hyperdesign")
 
 
 
@@ -2196,7 +2317,6 @@ is_rstacked <- function(x) UseMethod("is_rstacked")
 #' @param x The multivariate data (a matrix, multidesign, multiframe, or other data container)
 #' @param sfun The columnwise summary function (e.g., `colMeans`, `colSums`, etc.)
 #' @param ... Unquoted names of variables to group by, or for matrices, the grouping variables
-#' @param extract_data Logical; if TRUE, returns just the summarized data (default: FALSE)
 #'
 #' @return For multidesign/multiframe objects: a new object of the same class with summarized data.
 #'         For matrices: a matrix of summary statistics for each group.
@@ -2434,7 +2554,6 @@ column_design <- function(x, ...) UseMethod("column_design")
 #'
 #' @param x The object to split (data frame, multidesign, multiframe, etc.)
 #' @param ... Unquoted names of variables to split by
-#' @param collapse Logical; if TRUE, returns a simplified structure (default: FALSE)
 #'
 #' @return A tibble or list containing:
 #'   \item{group variables}{The splitting variables and their values}
@@ -2470,12 +2589,6 @@ column_design <- function(x, ...) UseMethod("column_design")
 split_indices <- function(x, ...) UseMethod("split_indices")
 
 
-#' Initialize a Transform Object
-#'
-#' @title Initialize a Transform Object
-#' @description This is a re-export of the init_transform function from the multivarious package.
-#' See \code{multivarious::init_transform} for full documentation.
-#' @name init_transform
 #' @importFrom multivarious init_transform
 #' @export
 multivarious::init_transform
@@ -2502,6 +2615,7 @@ multivarious::block_indices
 </file>
 
 <file path="R/hyperdesign.R">
+#' @importFrom dplyr bind_rows distinct slice
 #' @keywords internal
 block_index_mat <- function(x, byrow=FALSE) {
   lens <- if (byrow) {
@@ -2668,7 +2782,7 @@ hyperdesign <- function(x, block_names=NULL) {
 #' @param i the block number
 #' @param byrow if true, return row-oriented indices
 #' @rdname block_indices
-block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
+block_indices.hyperdesign <- function(x, i, byrow=FALSE, ...) {
   hd <- attr(x, "hdes")
 
   if (missing(i)) {
@@ -2696,12 +2810,13 @@ block_indices.hyperdesign <- function(x, i, byrow=FALSE) {
 #'
 #' @param x A hyperdesign object
 #' @param preproc A preprocessing specification (e.g., from recipes package)
+#' @param ... Additional arguments (not used)
 #' @return A list of initialized preprocessing objects, one for each block
 #' @family hyperdesign functions
 #' @method init_transform hyperdesign
 #' @export
 
-init_transform.hyperdesign <- function(x, preproc) {
+init_transform.hyperdesign <- function(x, preproc, ...) {
   ## pre-processors
   proclist <- lapply(seq_along(x), function(i) {
     multivarious:::fresh(preproc) %>% prep()
@@ -2971,6 +3086,7 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 #'
 #' @param x A hyperdesign object
 #' @param block Optional numeric index specifying which block's design to return
+#' @param ... Additional arguments (not used)
 #' @return If block is specified, returns design for that block; otherwise returns
 #'         a list of designs for all blocks
 #' @family hyperdesign functions
@@ -2988,7 +3104,7 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 #'
 #' # Get design for block 1
 #' block1_design <- design(hd, block=1)
-design.hyperdesign <- function(x, block) {
+design.hyperdesign <- function(x, block, ...) {
   if (missing(block)) {
     lapply(x, design)
   } else {
@@ -3007,6 +3123,7 @@ design.hyperdesign <- function(x, block) {
 #'
 #' @param x A hyperdesign object
 #' @param block Optional numeric index specifying which block's data to return
+#' @param ... Additional arguments (not used)
 #' @return If block is specified, returns data matrix for that block; otherwise returns
 #'         a list of data matrices for all blocks
 #' @family hyperdesign functions
@@ -3026,7 +3143,7 @@ design.hyperdesign <- function(x, block) {
 #'
 #' # Get data from block 1
 #' block1_data <- xdata(hd, block=1)
-xdata.hyperdesign <- function(x, block) {
+xdata.hyperdesign <- function(x, block, ...) {
   if (missing(block)) {
     lapply(x, xdata)
   } else {
@@ -3060,8 +3177,7 @@ column_design.hyperdesign <- function(x, block, ...) {
 #' Create a new hyperdesign object containing only the specified blocks.
 #'
 #' @param x A hyperdesign object
-#' @param subset Logical vector indicating which blocks to keep
-#' @param ... Additional arguments (not used)
+#' @param fexpr Filter expression to apply to each block's design
 #' @return A new hyperdesign object containing only the selected blocks
 #' @family hyperdesign functions
 #' @method subset hyperdesign

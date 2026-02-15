@@ -9,8 +9,8 @@ test_that("multiblock correctly detects orientation", {
   expect_true(is_cstacked(mb_c))
   expect_false(is_rstacked(mb_c))
 
-  B1 <- matrix(1:6, ncol = 2)
-  B2 <- matrix(7:12, ncol = 2)
+  B1 <- matrix(1:6, nrow = 3, ncol = 2)
+  B2 <- matrix(7:10, nrow = 2, ncol = 2)
   mb_r <- multiblock(list(B1, B2))
   expect_true(is_rstacked(mb_r))
   expect_false(is_cstacked(mb_r))
@@ -82,9 +82,9 @@ test_that("is_cstacked and is_rstacked work correctly", {
 
 test_that("transpose works correctly", {
   X1 <- matrix(1:12, 4, 3)
-  X2 <- matrix(13:24, 4, 3)
+  X2 <- matrix(1:8, 4, 2)
   mb_c <- multiblock(list(X1, X2))
-  
+
   mb_t <- t(mb_c)
   expect_true(is_rstacked(mb_t))
   expect_false(is_cstacked(mb_t))
@@ -119,4 +119,13 @@ test_that("multiblock handles errors correctly", {
     block_indices(mb, 3),
     "`i` must be between 1 and 2, not 3"
   )
+})
+
+# --- Regression tests ---
+
+test_that("print.multiblock_list does not error", {
+  X1 <- matrix(1:12, 4, 3)
+  X2 <- matrix(13:24, 4, 3)
+  mb <- multiblock(list(X1, X2))
+  expect_output(print(mb), "Multiblock Object")
 })

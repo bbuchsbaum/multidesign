@@ -4,12 +4,14 @@
 \alias{subset.multidesign}
 \title{Subset a Multidesign Object}
 \usage{
-\method{subset}{multidesign}(x, fexpr)
+\method{subset}{multidesign}(x, fexpr, ...)
 }
 \arguments{
 \item{x}{A multidesign object}
 
 \item{fexpr}{An expression used to filter observations based on design variables}
+
+\item{...}{Additional arguments (not used)}
 }
 \value{
 A new multidesign object containing only matching observations, or NULL if no matches
@@ -20,7 +22,7 @@ conditions based on design variables.
 }
 \examples{
 X <- matrix(rnorm(100*20), 100, 20)
-Y <- tibble(
+Y <- tibble::tibble(
   condition = rep(c("A", "B"), each=50),
   block = rep(1:2, times=50)
 )
@@ -37,12 +39,10 @@ mds_A1 <- subset(mds, condition == "A" & block == 1)
 \code{\link{split.multidesign}}
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{multidesign}()},
 \code{\link{reduce.multidesign}()},
 \code{\link{split.multidesign}()},
 \code{\link{split_indices.multidesign}()},
-\code{\link{summarize_by.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{summarize_by.multidesign}()}
 }
 \concept{multidesign functions}

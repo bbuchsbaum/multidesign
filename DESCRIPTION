@@ -5,7 +5,7 @@ Version: 0.1.0
 Authors@R: person("Bradley R.", "Buchsbaum", 
     email = "brad.buchsbaum@gmail.com",
     role = c("aut", "cre", "cph"),
-    comment = c(ORCID = "0000-0002-3392-2534"))
+    comment = c(ORCID = "0000-0002-1108-4866"))
 Description: Manage and analyze complex experimental designs with multiple data blocks 
     and nested structures. Implements methods for design matrix manipulation, 
     cross-validation, and data splitting with support for lazy evaluation and 
@@ -13,7 +13,6 @@ Description: Manage and analyze complex experimental designs with multiple data 
     and extends functionality of 'tibble' and 'dplyr' for experimental design workflows.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 Imports:
     chk,
     tibble,
@@ -23,16 +22,18 @@ Imports:
     deflist,
     purrr,
     tidyr,
+    tidyselect,
     magrittr,
     recipes,
+    rlang,
     stats,
-    utils,
-    rlang
-RoxygenNote: 7.3.2.9000
-Suggests: 
+    utils
+RoxygenNote: 7.3.3
+Suggests:
     covr,
     testthat (>= 3.0.0),
-    knitr
+    knitr,
+    rmarkdown
 Config/testthat/edition: 3
 URL: https://github.com/bbuchsbaum/multidesign
 BugReports: https://github.com/bbuchsbaum/multidesign/issues

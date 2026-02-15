@@ -10,6 +10,15 @@
 #'   to indicate the origin multidesign
 #'
 #' @return A new multidesign object containing the concatenated data
+#'
+#' @examples
+#' X1 <- matrix(rnorm(10*5), 10, 5)
+#' X2 <- matrix(rnorm(10*5), 10, 5)
+#' md1 <- multidesign(X1, data.frame(cond = rep("A", 10)))
+#' md2 <- multidesign(X2, data.frame(cond = rep("B", 10)))
+#' combined <- bind_multidesign(md1, md2)
+#' combined_id <- bind_multidesign(md1, md2, .id = "source")
+#'
 #' @export
 bind_multidesign <- function(..., .id = NULL) {
   mds_list <- list(...)
@@ -19,13 +28,25 @@ bind_multidesign <- function(..., .id = NULL) {
   if (length(mds_list) < 1) {
     stop("no multidesign objects supplied")
   }
+
+  # Expand any hyperdesign inputs into their constituent multidesign blocks
+  expanded <- list()
+  for (item in mds_list) {
+    if (inherits(item, "hyperdesign")) {
+      expanded <- c(expanded, as.list(item))
+    } else {
+      expanded <- c(expanded, list(item))
+    }
+  }
+  mds_list <- expanded
+
   if (!all(sapply(mds_list, inherits, "multidesign"))) {
     stop("all inputs must be multidesign objects")
   }
 
   base_cd <- mds_list[[1]]$column_design
-  for (md in mds_list[-1]) {
-    if (!identical(base_cd, md$column_design)) {
+  for (i in seq_along(mds_list)[-1]) {
+    if (!identical(base_cd, mds_list[[i]]$column_design)) {
       stop("column designs must be identical across multidesigns")
     }
   }

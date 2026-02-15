@@ -199,3 +199,113 @@ test_that("subsetting works correctly", {
     all(x$design$condition == "A" & x$design$subject == 1)
   })))
 })
+
+# --- Regression tests ---
+
+test_that("print.hyperdesign does not error", {
+  d1 <- multidesign(
+    matrix(rnorm(50), 10, 5),
+    data.frame(condition = rep(c("A", "B"), each=5))
+  )
+  d2 <- multidesign(
+    matrix(rnorm(50), 10, 5),
+    data.frame(condition = rep(c("A", "B"), each=5))
+  )
+  hd <- hyperdesign(list(d1, d2))
+  expect_output(print(hd), "Hyperdesign Object")
+})
+
+test_that("df_to_hyperdesign creates hyperdesign from data frame", {
+  sample_tibble <- tibble::tibble(
+    felab = rep(1:2, each = 3),
+    attention = rep(c("DA", "FA", "DA"), times = 2),
+    subject = rep(1001:1002, each = 3),
+    `v1` = rnorm(6),
+    `v2` = rnorm(6),
+    `v3` = rnorm(6)
+  )
+
+  hd <- df_to_hyperdesign(
+    data = sample_tibble,
+    design_vars = c("felab", "attention"),
+    x_vars = c("v1", "v2", "v3"),
+    split_var = "subject"
+  )
+
+  expect_s3_class(hd, "hyperdesign")
+  expect_equal(length(hd), 2)
+  # Each block should have 3 observations and 3 variables
+
+  expect_equal(nrow(hd[[1]]$x), 3)
+  expect_equal(ncol(hd[[1]]$x), 3)
+  # Design should have felab and attention columns
+  expect_true(all(c("felab", "attention") %in% names(hd[[1]]$design)))
+})
+
+test_that("block_indices.hyperdesign works with and without i", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  d2 <- multidesign(matrix(rnorm(40), 8, 5), data.frame(cond = rep(c("A","B"), 4)))
+  hd <- hyperdesign(list(d1, d2))
+
+  # Without i: returns list of all block indices
+  all_idx <- block_indices(hd)
+  expect_type(all_idx, "list")
+  expect_length(all_idx, 2)
+  expect_equal(all_idx[[1]], 1:5)
+  expect_equal(all_idx[[2]], 6:10)
+
+  # With i: returns indices for specific block
+  idx1 <- block_indices(hd, 1)
+  expect_equal(idx1, 1:5)
+
+  # byrow = TRUE
+  all_row_idx <- block_indices(hd, byrow = TRUE)
+  expect_type(all_row_idx, "list")
+  expect_length(all_row_idx, 2)
+  expect_equal(all_row_idx[[1]], 1:6)
+  expect_equal(all_row_idx[[2]], 7:14)
+
+  row_idx1 <- block_indices(hd, 1, byrow = TRUE)
+  expect_equal(row_idx1, 1:6)
+})
+
+test_that("fold_over.hyperdesign leave-one-block-out works", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  d3 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  hd <- hyperdesign(list(d1, d2, d3))
+
+  # Leave-one-block-out (no split vars)
+  folds <- fold_over(hd)
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 3)
+
+  f1 <- folds[[1]]
+  # Assessment is a multidesign (single block)
+  expect_s3_class(f1$assessment, "multidesign")
+  # Analysis is a hyperdesign (remaining blocks)
+  expect_s3_class(f1$analysis, "hyperdesign")
+  expect_equal(length(f1$analysis), 2)
+  expect_equal(nrow(f1$assessment$x), 6)
+})
+
+test_that("print.foldlist does not error", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  hd <- hyperdesign(list(d1, d2))
+
+  folds <- fold_over(hd)
+  expect_output(print(folds), "Cross-Validation Folds")
+
+  # Also test with variable-based folds
+  folds2 <- fold_over(hd, cond)
+  expect_output(print(folds2), "Cross-Validation Folds")
+})
+
+test_that("subset.hyperdesign errors when nothing matches", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(cond = rep(c("A","B"), 3)))
+  hd <- hyperdesign(list(d1, d2))
+
+  expect_error(subset(hd, cond == "Z"), "does not match any rows")
+})

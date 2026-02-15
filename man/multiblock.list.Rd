@@ -51,8 +51,6 @@ is_rstacked(mb_r)  # TRUE
 
 Other multiblock functions: 
 \code{\link{block_indices.multiblock_list}()},
-\code{\link{is_cstacked.multiblock_list}()},
-\code{\link{is_rstacked.multiblock_list}()},
 \code{\link{t.multiblock_list}()}
 }
 \concept{multiblock functions}

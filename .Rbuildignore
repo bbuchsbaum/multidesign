@@ -5,7 +5,17 @@
 ^pkgdown$
 ^codecov\.yml$
 ^README\.Rmd$
- .aider.chat.history.md
-.aider.input.history
-.aider.tags.cache.v3
-cran-comments.md
+^\.aider\.chat\.history\.md$
+^\.aider\.input\.history$
+^\.aider\.tags\.cache\.v3$
+^cran-comments\.md$
+^1\. Add proper package dependencies in DESCRIPTION$
+^CLAUDE\.md$
+^repomix-output\.txt$
+^repomix-output\.xml$
+^doc$
+^Meta$
+^test_vignette\.Rmd$
+^\.omc$
+^\.rcmdcheck_result\.rds$
+^\.covr_result\.rds$

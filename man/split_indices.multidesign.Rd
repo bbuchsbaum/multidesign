@@ -23,16 +23,22 @@ A tibble containing:
 Returns indices for splitting a multidesign object based on combinations of design variables,
 without actually splitting the data.
 }
+\examples{
+X <- matrix(rnorm(40*10), 40, 10)
+Y <- data.frame(condition = rep(c("A","B"), each=20),
+                block = rep(1:4, each=10))
+mds <- multidesign(X, Y)
+idx <- split_indices(mds, condition)
+
+}
 \seealso{
 \code{\link{split.multidesign}}
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{multidesign}()},
 \code{\link{reduce.multidesign}()},
 \code{\link{split.multidesign}()},
 \code{\link{subset.multidesign}()},
-\code{\link{summarize_by.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{summarize_by.multidesign}()}
 }
 \concept{multidesign functions}

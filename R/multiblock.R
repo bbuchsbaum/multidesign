@@ -140,31 +140,13 @@ t.multiblock_list <- function(x) {
   multiblock(out)
 }
 
-#' Test if Multiblock Object is Column-Stacked
-#'
-#' @description
-#' Checks if a multiblock object is column-stacked (matrices share row dimension).
-#'
-#' @param x A multiblock object
-#' @return Logical indicating if object is column-stacked
-#' @family multiblock functions
-#' @seealso [is_rstacked()]
-#' @method is_cstacked multiblock_list
+#' @rdname is_cstacked
 #' @export
 is_cstacked.multiblock_list <- function(x) {
   inherits(x, "multiblock_c")
 }
 
-#' Test if Multiblock Object is Row-Stacked
-#'
-#' @description
-#' Checks if a multiblock object is row-stacked (matrices share column dimension).
-#'
-#' @param x A multiblock object
-#' @return Logical indicating if object is row-stacked
-#' @family multiblock functions
-#' @seealso [is_cstacked()]
-#' @method is_rstacked multiblock_list
+#' @rdname is_rstacked
 #' @export
 is_rstacked.multiblock_list <- function(x) {
   inherits(x, "multiblock_r")
@@ -182,7 +164,7 @@ is_rstacked.multiblock_list <- function(x) {
 #' @method print multiblock_list
 #' @export
 print.multiblock_list <- function(x, ...) {
-  cat(crayon::bold(crayon::blue("\n═══ Multiblock Object ═══\n")))
+  cat(crayon::bold(crayon::blue("\n=== Multiblock Object ===\n")))
   cat(crayon::bold("\nNumber of blocks: "), crayon::green(length(x)), "\n")
   cat(crayon::bold("Orientation: "), crayon::green(attr(x, "orient")), "\n\n")
   
@@ -202,6 +184,6 @@ print.multiblock_list <- function(x, ...) {
         crayon::green(sum(sapply(x, nrow))), "\n")
   }
   
-  cat(crayon::bold(blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n=======================\n")))
   invisible(x)
 }

@@ -1,3 +1,5 @@
+#' @importFrom magrittr %>%
+#' @importFrom utils head tail
 #' @importFrom dplyr filter ungroup pull all_of
 #' @title Create a Multidesign Object from Matrix Data and Design Information
 #'
@@ -29,7 +31,7 @@
 #' X <- matrix(rnorm(20*100), 20, 100)
 #'
 #' # Create design information
-#' Y <- tibble(
+#' Y <- tibble::tibble(
 #'   condition = rep(c("control", "treatment"), each=10),
 #'   subject = rep(1:5, times=4)
 #' )
@@ -54,20 +56,19 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
   chk::chk_equal(nrow(x), nrow(y))
   chk::chk_s3_class(y, "data.frame")
   y <- tibble::as_tibble(y)
+  y$.index <- seq_len(nrow(x))
 
   if (!is.null(column_design)) {
     chk::chk_equal(ncol(x), nrow(column_design))
     chk::chk_s3_class(column_design, "data.frame")
     column_design <- tibble::as_tibble(column_design)
   } else {
-    # Create a default column design with an index
     column_design <- tibble::tibble(.index = seq_len(ncol(x)))
   }
 
-  # Store the design without adding .index
   structure(list(
     x=x,
-    design=tibble::as_tibble(y),
+    design=y,
     column_design=column_design
   ),
   class="multidesign")
@@ -91,12 +92,14 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
 #'   \item{projector}{The projection object used for reduction}
 #'
 #' @examples
+#' \dontrun{
 #' X <- matrix(rnorm(100*20), 100, 20)
-#' Y <- tibble(condition = rep(letters[1:4], each=25))
+#' Y <- tibble::tibble(condition = rep(letters[1:4], each=25))
 #' mds <- multidesign(X, Y)
 #'
 #' # Reduce to 5 components using PCA
 #' reduced_mds <- reduce(mds, nc=5)
+#' }
 #'
 #' @family multidesign functions
 #' @seealso \code{\link{multidesign}}
@@ -108,6 +111,7 @@ reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(
   structure(list(
     x=rx,
     design=x$design,
+    column_design=x$column_design,
     projector=projector
   ),
   class=c("reduced_multidesign", "multidesign"))
@@ -121,12 +125,13 @@ reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(
 #'
 #' @param x A multidesign object
 #' @param fexpr An expression used to filter observations based on design variables
+#' @param ... Additional arguments (not used)
 #'
 #' @return A new multidesign object containing only matching observations, or NULL if no matches
 #'
 #' @examples
 #' X <- matrix(rnorm(100*20), 100, 20)
-#' Y <- tibble(
+#' Y <- tibble::tibble(
 #'   condition = rep(c("A", "B"), each=50),
 #'   block = rep(1:2, times=50)
 #' )
@@ -141,14 +146,14 @@ reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(
 #' @family multidesign functions
 #' @seealso \code{\link{split.multidesign}}
 #' @export
-subset.multidesign <- function(x, fexpr) {
+subset.multidesign <- function(x, fexpr, ...) {
   des2 <- filter(x$design, !!rlang::enquo(fexpr))
   if (nrow(des2) == 0) {
     NULL
   } else {
-    # Use row numbers instead of .index
-    ind <- as.numeric(rownames(des2))
-    multidesign(x$x[ind,], des2, x$column_design)
+    ind <- des2$.index
+    des2$.index <- NULL
+    multidesign(x$x[ind, , drop=FALSE], des2, x$column_design)
   }
 }
 
@@ -159,14 +164,15 @@ subset.multidesign <- function(x, fexpr) {
 #' design variables.
 #'
 #' @param x A multidesign object
-#' @param ... Unquoted names of variables to split by
-#' @param collapse Logical; whether to collapse the resulting list
+#' @param f Unquoted name of the first variable to split by
+#' @param drop Logical; unused, present for compatibility with the generic
+#' @param ... Additional unquoted names of variables to split by
 #'
 #' @return A list of multidesign objects, one for each combination of splitting variables
 #'
 #' @examples
 #' X <- matrix(rnorm(100*20), 100, 20)
-#' Y <- tibble(
+#' Y <- tibble::tibble(
 #'   condition = rep(c("A", "B"), each=50),
 #'   block = rep(1:2, times=50)
 #' )
@@ -181,15 +187,18 @@ subset.multidesign <- function(x, fexpr) {
 #' @family multidesign functions
 #' @seealso \code{\link{subset.multidesign}}
 #' @export
-split.multidesign <- function(x, ..., collapse=FALSE) {
-  nest.by <- rlang::quos(...)
+split.multidesign <- function(x, f, drop=FALSE, ...) {
+  nest.by <- rlang::enquos(f, ...)
   ret <- x$design %>% nest_by(!!!nest.by, .keep=TRUE)
-  # Use row numbers instead of .index
   xl <- ret$data %>% purrr::map(~{
-    ind <- as.numeric(rownames(.x))
+    ind <- .x$.index
     x$x[ind, , drop=FALSE]
   })
-  ret <- lapply(1:nrow(ret), function(i) multidesign.matrix(xl[[i]], ret$data[[i]], x$column_design))
+  lapply(seq_len(nrow(ret)), function(i) {
+    d <- ret$data[[i]]
+    d$.index <- NULL
+    multidesign.matrix(xl[[i]], d, x$column_design)
+  })
 }
 
 #' Get Split Indices for a Multidesign Object
@@ -207,20 +216,28 @@ split.multidesign <- function(x, ..., collapse=FALSE) {
 #'   \item{indices}{List column of indices for each group}
 #'   \item{.splitvar}{Combined string of grouping values}
 #'
+#' @examples
+#' X <- matrix(rnorm(40*10), 40, 10)
+#' Y <- data.frame(condition = rep(c("A","B"), each=20),
+#'                 block = rep(1:4, each=10))
+#' mds <- multidesign(X, Y)
+#' idx <- split_indices(mds, condition)
+#'
 #' @family multidesign functions
 #' @seealso \code{\link{split.multidesign}}
 #' @export
 #' @importFrom tidyr unite
+#' @importFrom dplyr across
+#' @importFrom tidyselect where any_of
 split_indices.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
 
-  # Convert numeric variables to factors for proper grouping
+  # Convert numeric variables to factors for proper grouping, excluding .index
   design_copy <- x$design %>%
-    mutate(across(where(is.numeric), as.factor))
+    mutate(across(where(is.numeric) & !any_of(".index"), as.factor))
 
   ret <- design_copy %>% nest_by(!!!nest.by, .keep=TRUE)
-  # Use row numbers instead of .index
-  xl <- ret$data %>% purrr::map(~ as.numeric(rownames(.x)))
+  xl <- ret$data %>% purrr::map(~ .x$.index)
 
   # Get group variable names
   group_vars <- colnames(ret %>% select(dplyr::group_vars(ret)))
@@ -258,7 +275,7 @@ split_indices.multidesign <- function(x, ..., collapse=FALSE) {
 #'
 #' @examples
 #' X <- matrix(rnorm(100*20), 100, 20)
-#' Y <- tibble(
+#' Y <- tibble::tibble(
 #'   condition = rep(c("A", "B"), each=50),
 #'   block = rep(1:2, times=50)
 #' )
@@ -278,71 +295,65 @@ summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) 
   nest.by <- rlang::quos(...)
   ret <- x$design %>% nest_by(!!!nest.by)
 
-  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], drop=FALSE,])))
+  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], , drop=FALSE])))
   ret2 <- ret %>% select(-data)
   multidesign(dsum, ret2, x$column_design)
 }
 
-#' Extract Data Matrix from a Multidesign Object
-#'
-#' @description
-#' Returns the data matrix component of a multidesign object.
-#'
-#' @param x A multidesign object
-#' @param ... Additional arguments (not used)
-#' @return The data matrix stored in the multidesign object
-#'
-#' @family multidesign functions
+#' @rdname xdata
 #' @export
 xdata.multidesign <- function(x, ...) x$x
 
-#' Extract Design Information from a Multidesign Object
-#'
-#' @description
-#' Returns the design data frame component of a multidesign object.
-#'
-#' @param x A multidesign object
-#' @param ... Additional arguments (not used)
-#' @return The design data frame stored in the multidesign object
-#'
-#' @family multidesign functions
+#' @rdname design
 #' @export
-design.multidesign <- function(x, ...) x$design
+design.multidesign <- function(x, ...) {
+  des <- x$design
+  des$.index <- NULL
+  des
+}
 
-#' Extract the column design from a multidesign object
-#'
-#' @param x A multidesign object
-#' @param ... Additional arguments passed to methods
-#' @return The column design data frame
+#' @rdname column_design
 #' @export
-#' @method column_design multidesign
 column_design.multidesign <- function(x, ...) {
   x$column_design
 }
 
+#' @rdname select_variables
+#' @export
+select_variables.multidesign <- function(x, ...) {
+  cd <- x$column_design
+  cd$.col_pos <- seq_len(nrow(cd))
+  filt_expr <- rlang::enquos(...)
+  cd_filtered <- dplyr::filter(cd, !!!filt_expr)
+  if (nrow(cd_filtered) == 0) {
+    stop("no columns match the filter expression")
+  }
+  col_idx <- cd_filtered$.col_pos
+  cd_filtered$.col_pos <- NULL
+  multidesign(x$x[, col_idx, drop = FALSE], x$design, cd_filtered)
+}
+
+#' @rdname fold_over
 #' @export
 #' @importFrom deflist deflist
 fold_over.multidesign <- function(x, ...) {
   args <- rlang::enquos(...)
-  splits <- split_indices(x,!!!args)
-  foldframe <- splits %>% mutate(.fold=1:n())
+  splits <- split_indices(x, !!!args)
+  foldframe <- splits %>% mutate(.fold = seq_len(n()))
 
   extract <- function(i) {
-    #browser()
     block <- foldframe[[".fold"]][i]
     ind <- unlist(foldframe[["indices"]][[i]])
 
-    testdat <- multidesign(xdata(x)[ind,], x$design[ind,])
-    ## all blocks except
-    traindat <- multidesign(xdata(x)[-ind,], x$design[-ind,])
+    testdat <- multidesign(xdata(x)[ind, , drop=FALSE], x$design[ind, ], x$column_design)
+    traindat <- multidesign(xdata(x)[-ind, , drop=FALSE], x$design[-ind, ], x$column_design)
     list(analysis=traindat,
          assessment=testdat)
-
   }
 
   tlen <- nrow(foldframe)
   ret <- deflist(extract, len=tlen)
-  names(ret) <- paste0("fold_", 1:length(ret))
+  names(ret) <- paste0("fold_", seq_along(ret))
   class(ret) <- c("foldlist", class(ret))
   attr(ret, "foldframe") <- foldframe
   ret
@@ -362,11 +373,11 @@ fold_over.multidesign <- function(x, ...) {
 #' @export
 print.multidesign <- function(x, ...) {
   # Header
-  cat(crayon::bold(crayon::blue("\n═══ Multidesign Object ═══\n")))
+  cat(crayon::bold(crayon::blue("\n=== Multidesign Object ===\n")))
 
   # Data matrix dimensions
   cat("\nData Matrix: \n")
-  cat("  ", nrow(x$x), "observations ×", ncol(x$x), "variables \n")
+  cat("  ", nrow(x$x), "observations x", ncol(x$x), "variables \n")
 
   # Design variables
   cat("\nDesign Variables: \n")
@@ -381,7 +392,7 @@ print.multidesign <- function(x, ...) {
     } else {
       paste(unique_vals, collapse=", ")
     }
-    cat("  ", crayon::white("•"), " ", var, ": ",
+    cat("  ", crayon::white("*"), " ", var, ": ",
         crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
   }
 
@@ -399,13 +410,13 @@ print.multidesign <- function(x, ...) {
       } else {
         paste(unique_vals, collapse=", ")
       }
-      cat("  ", crayon::white("•"), " ", var, ": ",
+      cat("  ", crayon::white("*"), " ", var, ": ",
           crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
     }
   }
 
   # Footer
-  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n=======================\n")))
   invisible(x)
 }
 
@@ -421,7 +432,7 @@ print.multidesign <- function(x, ...) {
 #' @method print reduced_multidesign
 #' @export
 print.reduced_multidesign <- function(x, ...) {
-  cat(crayon::bold(crayon::blue("\n═══ Reduced Multidesign Object ═══\n")))
+  cat(crayon::bold(crayon::blue("\n=== Reduced Multidesign Object ===\n")))
 
   # Dimension information
   cat(crayon::bold("\nDimensionality:"), "\n")
@@ -430,7 +441,7 @@ print.reduced_multidesign <- function(x, ...) {
 
   # Data dimensions
   cat(crayon::bold("\nData Matrix:"), "\n")
-  cat("  ", crayon::green(paste0(nrow(x$x), " observations × ", ncol(x$x), " components")), "\n")
+  cat("  ", crayon::green(paste0(nrow(x$x), " observations x ", ncol(x$x), " components")), "\n")
 
   # Design variables
   cat(crayon::bold("\nDesign Variables:"), "\n")
@@ -446,12 +457,12 @@ print.reduced_multidesign <- function(x, ...) {
     } else {
       paste(unique_vals, collapse=", ")
     }
-    cat("  ", crayon::white("•"), " ", var, ": ",
+    cat("  ", crayon::white("*"), " ", var, ": ",
         crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
   }
 
   # Column metadata if present
-  if (ncol(x$column_design) > 0) {
+  if (!is.null(x$column_design) && ncol(x$column_design) > 0) {
     cat(crayon::bold("\nColumn Metadata:"), "\n")
     col_vars <- names(x$column_design)
     for (var in col_vars) {
@@ -464,11 +475,11 @@ print.reduced_multidesign <- function(x, ...) {
       } else {
         paste(unique_vals, collapse=", ")
       }
-      cat("  ", crayon::white("•"), " ", var, ": ",
+      cat("  ", crayon::white("*"), " ", var, ": ",
           crayon::green(n_unique), " levels (", sample_vals, ")\n", sep="")
     }
   }
 
-  cat(crayon::bold(crayon::blue("\n═══════════════════════\n")))
+  cat(crayon::bold(crayon::blue("\n=======================\n")))
   invisible(x)
 }

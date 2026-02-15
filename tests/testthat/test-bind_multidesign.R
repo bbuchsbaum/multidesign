@@ -24,7 +24,7 @@ test_that("bind_multidesign merges objects and adds id column", {
 
 test_that("bind_multidesign fails with mismatched column designs", {
   X1 <- matrix(1:6, nrow = 3)
-  X2 <- matrix(7:12, nrow = 3)
+  X2 <- matrix(1:9, nrow = 3)
   design1 <- tibble(group = letters[1:3])
   design2 <- tibble(group = letters[4:6])
   col_design1 <- tibble(feature = 1:2)
@@ -35,4 +35,36 @@ test_that("bind_multidesign fails with mismatched column designs", {
 
   expect_error(bind_multidesign(md1, md2),
                "column designs must be identical across multidesigns")
+})
+
+# --- Regression tests ---
+
+test_that("bind_multidesign works without .id", {
+  X1 <- matrix(1:6, nrow = 3)
+  X2 <- matrix(7:12, nrow = 3)
+  design1 <- tibble(group = letters[1:3])
+  design2 <- tibble(group = letters[4:6])
+  col_design <- tibble(feature = 1:2)
+
+  md1 <- multidesign(X1, design1, col_design)
+  md2 <- multidesign(X2, design2, col_design)
+
+  out <- bind_multidesign(md1, md2)
+  expect_equal(nrow(out$x), 6)
+  expect_equal(out$design$group, letters[1:6])
+  expect_false("src" %in% names(out$design))
+})
+
+test_that("bind_multidesign errors on non-multidesign inputs", {
+  expect_error(
+    bind_multidesign(list(1, 2, 3)),
+    "all inputs must be multidesign objects"
+  )
+})
+
+test_that("bind_multidesign errors on empty input", {
+  expect_error(
+    bind_multidesign(),
+    "no multidesign objects supplied"
+  )
 })

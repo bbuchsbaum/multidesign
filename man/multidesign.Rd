@@ -57,7 +57,7 @@ for manipulation, subsetting, and analysis.
 X <- matrix(rnorm(20*100), 20, 100)
 
 # Create design information
-Y <- tibble(condition=rep(letters[1:5], 4))
+Y <- tibble::tibble(condition=rep(letters[1:5], 4))
 
 # Create multidesign object
 mds <- multidesign(X, Y)
@@ -69,7 +69,7 @@ sdes <- split(mds, condition)
 X <- matrix(rnorm(20*100), 20, 100)
 
 # Create design information
-Y <- tibble(
+Y <- tibble::tibble(
   condition = rep(c("control", "treatment"), each=10),
   subject = rep(1:5, times=4)
 )
@@ -93,12 +93,10 @@ mds <- multidesign(X, Y, col_info)
   \code{\link{split.multidesign}} for splitting by design variables
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{reduce.multidesign}()},
 \code{\link{split.multidesign}()},
 \code{\link{split_indices.multidesign}()},
 \code{\link{subset.multidesign}()},
-\code{\link{summarize_by.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{summarize_by.multidesign}()}
 }
 \concept{multidesign functions}

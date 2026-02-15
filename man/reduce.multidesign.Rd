@@ -32,24 +32,24 @@ the design structure. By default uses PCA, but supports any reduction method tha
 a projector object.
 }
 \examples{
+\dontrun{
 X <- matrix(rnorm(100*20), 100, 20)
-Y <- tibble(condition = rep(letters[1:4], each=25))
+Y <- tibble::tibble(condition = rep(letters[1:4], each=25))
 mds <- multidesign(X, Y)
 
 # Reduce to 5 components using PCA
 reduced_mds <- reduce(mds, nc=5)
+}
 
 }
 \seealso{
 \code{\link{multidesign}}
 
 Other multidesign functions: 
-\code{\link{design.multidesign}()},
 \code{\link{multidesign}()},
 \code{\link{split.multidesign}()},
 \code{\link{split_indices.multidesign}()},
 \code{\link{subset.multidesign}()},
-\code{\link{summarize_by.multidesign}()},
-\code{\link{xdata.multidesign}()}
+\code{\link{summarize_by.multidesign}()}
 }
 \concept{multidesign functions}

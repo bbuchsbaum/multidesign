@@ -28,8 +28,6 @@ block_indices(mb, 2)
 }
 \seealso{
 Other multiblock functions: 
-\code{\link{is_cstacked.multiblock_list}()},
-\code{\link{is_rstacked.multiblock_list}()},
 \code{\link{multiblock.list}()},
 \code{\link{t.multiblock_list}()}
 }
