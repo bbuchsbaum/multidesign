@@ -1,0 +1,65 @@
+# Summarize Data Over Grouping Variables
+
+Applies a multivariate columnwise summary function (e.g., \`colMeans\`)
+to subsets of observations formed by one or more grouping variables.
+This function provides a flexible way to compute group-wise statistics
+across different data structures.
+
+## Usage
+
+``` r
+summarize_by(x, ...)
+```
+
+## Arguments
+
+- x:
+
+  The multivariate data (a matrix, multidesign, multiframe, or other
+  data container)
+
+- ...:
+
+  Method-specific arguments. For multidesign/multiframe: unquoted names
+  of variables to group by, plus optional \`sfun\` (summary function,
+  default \`colMeans\`) and \`extract_data\` (logical). For matrices:
+  the grouping variables.
+
+## Value
+
+For multidesign/multiframe objects: a new object of the same class with
+summarized data. For matrices: a matrix of summary statistics for each
+group.
+
+## Details
+
+The function works with various data structures including: \*
+Multidesign objects: Summarizes the data matrix by design variables \*
+Multiframe objects: Summarizes lazy-evaluated observations by design
+variables \* Matrices: Summarizes columns by external grouping variables
+
+For each unique combination of grouping variables, the summary function
+is applied to the corresponding subset of observations.
+
+## See also
+
+[`multidesign`](https://bbuchsbaum.github.io/multidesign/reference/multidesign.md)
+for creating multidesign objects,
+[`multiframe`](https://bbuchsbaum.github.io/multidesign/reference/multiframe.md)
+for creating multiframe objects,
+[`split`](https://rdrr.io/r/base/split.html) for splitting data by
+grouping variables
+
+## Examples
+
+``` r
+# With a multidesign object
+X <- matrix(rnorm(100*10), 100, 10)
+groups <- rep(letters[1:5], each=20)
+mds <- multidesign(X, data.frame(group=groups))
+mds_means <- summarize_by(mds, group)
+
+# With a multiframe object
+mf <- multiframe(X, data.frame(group=groups))
+mf_means <- summarize_by(mf, group)
+```
