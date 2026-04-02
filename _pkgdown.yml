@@ -1,3 +1,4 @@
 url: https://bbuchsbaum.github.io/multidesign/
 template:
   bootstrap: 5
+  package: albersdown

@@ -39,3 +39,4 @@ URL: https://bbuchsbaum.github.io/multidesign/,
     https://github.com/bbuchsbaum/multidesign
 BugReports: https://github.com/bbuchsbaum/multidesign/issues
 VignetteBuilder: knitr
+Config/Needs/website: albersdown
