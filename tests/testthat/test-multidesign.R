@@ -195,6 +195,40 @@ test_that("fold_over preserves column_design", {
   expect_equal(f1$assessment$column_design, col_info)
 })
 
+test_that("cv_rows.multidesign creates explicit row folds", {
+  X <- matrix(1:24, 6, 4)
+  Y <- tibble(condition = letters[1:6])
+  md <- multidesign(X, Y)
+
+  folds <- cv_rows(md, rows = list(c(1, 3), c(2, 4)))
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 2)
+
+  f1 <- folds[[1]]
+  expect_equal(f1$assessment$x, X[c(1, 3), , drop = FALSE])
+  expect_equal(f1$analysis$x, X[-c(1, 3), , drop = FALSE])
+  expect_equal(f1$held_out$rows, c(1L, 3L))
+})
+
+test_that("cv_rows.multidesign validates explicit row folds", {
+  X <- matrix(rnorm(24), 6, 4)
+  Y <- tibble(condition = letters[1:6])
+  md <- multidesign(X, Y)
+
+  expect_error(
+    cv_rows(md, rows = list(c(1, 1))),
+    "must not contain duplicate row indices"
+  )
+  expect_error(
+    cv_rows(md, rows = list(1:6)),
+    "cannot hold out all rows"
+  )
+  expect_error(
+    cv_rows(md, rows = list(c(1, 7))),
+    "outside the valid range"
+  )
+})
+
 test_that("print.multidesign does not error", {
   X <- matrix(rnorm(20), 5, 4)
   Y <- tibble(condition = rep(c("A", "B"), c(2, 3)))

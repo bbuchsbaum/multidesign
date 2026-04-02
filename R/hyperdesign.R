@@ -297,31 +297,20 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
 
   # If no splitting variables provided, create leave-one-block-out folds
   if (length(split_vars) == 0) {
-    extract_block <- function(i) {
-      test_design <- x[[i]]$design
-      test_design$.index <- NULL
-
-      testdat <- multidesign(x[[i]]$x, test_design, x[[i]]$column_design)
-      traindat <- hyperdesign(x[-i])
-
-      list(analysis = traindat,
-           assessment = testdat,
-           held_out = list(block = i))
-    }
-
-    tlen <- length(x)
-    ret <- deflist(extract_block, len=tlen)
-    names(ret) <- paste0("fold_", seq_along(ret))
-    class(ret) <- c("foldlist", class(ret))
-
     foldframe <- tibble::tibble(
       .block = seq_along(x),
       indices = lapply(seq_along(x), function(i) seq_len(nrow(x[[i]]$design))),
       .splitvar = paste0("block_", seq_along(x)),
       .fold = seq_along(x)
     )
-    attr(ret, "foldframe") <- foldframe
-    return(ret)
+    held_out <- lapply(seq_along(x), function(i) list(block = i))
+    return(build_hyperdesign_foldlist(
+      x,
+      foldframe,
+      held_out = held_out,
+      assessment_mode = "multidesign",
+      drop_empty_analysis_blocks = TRUE
+    ))
   } else {
     # Early detection of confounded variables
     for (var in split_vars) {
@@ -432,57 +421,46 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     stop("No valid folds created. Check inclusion and exclusion conditions.")
   }
 
-  extract <- function(i) {
-    block <- foldframe[[".block"]][i]
-    ind <- unlist(foldframe[["indices"]][[i]])
-
+  valid_rows <- lapply(seq_along(indices), function(i) {
+    fold_idx <- indices[[i]]
+    block <- foldframe[[".block"]][fold_idx]
+    ind <- unlist(foldframe[["indices"]][[fold_idx]])
     ind <- as.integer(as.character(ind))
 
     test_design <- x[[block]]$design[ind, , drop = FALSE]
+    filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
+    test_row_indices <- filtered_test$.index
 
-    # Apply filtering conditions
+    row <- foldframe[fold_idx, , drop = FALSE]
+    row$indices <- list(test_row_indices)
+    row
+  })
+
+  held_out <- lapply(seq_along(indices), function(i) {
+    fold_idx <- indices[[i]]
+    block <- foldframe[[".block"]][fold_idx]
+    ind <- unlist(foldframe[["indices"]][[fold_idx]])
+    ind <- as.integer(as.character(ind))
+
+    test_design <- x[[block]]$design[ind, , drop = FALSE]
     filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
 
-    test_row_indices <- filtered_test$.index
-    filtered_test$.index <- NULL
-    testdat <- multidesign(x[[block]]$x[test_row_indices, , drop = FALSE],
-                          filtered_test,
-                          x[[block]]$column_design)
-
-    traindat <- hyperdesign(lapply(seq_along(x), function(j) {
-      if (j == block) {
-        if (length(test_row_indices) == nrow(x[[j]]$x)) {
-          stop("Block ", j, " contains only data for the assessment set.\n",
-               "This typically happens when a splitting variable is confounded with blocks.\n",
-               "Consider using a different splitting variable or restructuring your data.")
-        }
-        train_des <- x[[block]]$design[-ind, , drop = FALSE]
-        train_des$.index <- NULL
-        multidesign(x[[block]]$x[-test_row_indices, , drop = FALSE],
-                   train_des,
-                   x[[block]]$column_design)
-      } else {
-        x[[j]]
-      }
-    }))
-
-    # Get held_out values from the filtered test_design
-    held_out_values <- filtered_test %>%
+    filtered_test %>%
+      dplyr::select(-dplyr::any_of(".index")) %>%
       dplyr::distinct() %>%
       dplyr::slice(1) %>%
       as.list()
+  })
 
-    list(analysis = traindat,
-         assessment = testdat,
-         held_out = held_out_values)
-  }
+  valid_foldframe <- dplyr::bind_rows(valid_rows)
+  valid_foldframe$.fold <- seq_len(nrow(valid_foldframe))
 
-  ret <- deflist(function(i) extract(indices[i]), len = length(indices))
-
-  names(ret) <- paste0("fold_", seq_along(ret))
-  class(ret) <- c("foldlist", class(ret))
-  attr(ret, "foldframe") <- foldframe
-  ret
+  build_hyperdesign_foldlist(
+    x,
+    valid_foldframe,
+    held_out = held_out,
+    assessment_mode = "multidesign"
+  )
 }
 
 
@@ -754,6 +732,23 @@ print.hyperdesign <- function(x, ...) {
 #' @method print foldlist
 #' @export
 print.foldlist <- function(x, ...) {
+  format_held_out_value <- function(value) {
+    if (is.list(value)) {
+      nms <- names(value)
+      parts <- vapply(seq_along(value), function(i) {
+        label <- if (!is.null(nms) && nzchar(nms[[i]])) {
+          nms[[i]]
+        } else {
+          paste0("[[", i, "]]")
+        }
+        paste0(label, "={", format_held_out_value(value[[i]]), "}")
+      }, character(1))
+      paste(parts, collapse = "; ")
+    } else {
+      paste(value, collapse = ", ")
+    }
+  }
+
   # Get fold information
   foldframe <- attr(x, "foldframe")
   n_folds <- length(x)
@@ -791,7 +786,7 @@ print.foldlist <- function(x, ...) {
       for (var in names(fold_info$held_out)) {
         val <- fold_info$held_out[[var]]
         cat("    ", crayon::white("-"), " ", var, ": ",
-            crayon::yellow(paste(val, collapse=", ")), "\n", sep="")
+            crayon::yellow(format_held_out_value(val)), "\n", sep="")
       }
     }
   }

@@ -340,23 +340,7 @@ fold_over.multidesign <- function(x, ...) {
   args <- rlang::enquos(...)
   splits <- split_indices(x, !!!args)
   foldframe <- splits %>% mutate(.fold = seq_len(n()))
-
-  extract <- function(i) {
-    block <- foldframe[[".fold"]][i]
-    ind <- unlist(foldframe[["indices"]][[i]])
-
-    testdat <- multidesign(xdata(x)[ind, , drop=FALSE], x$design[ind, ], x$column_design)
-    traindat <- multidesign(xdata(x)[-ind, , drop=FALSE], x$design[-ind, ], x$column_design)
-    list(analysis=traindat,
-         assessment=testdat)
-  }
-
-  tlen <- nrow(foldframe)
-  ret <- deflist(extract, len=tlen)
-  names(ret) <- paste0("fold_", seq_along(ret))
-  class(ret) <- c("foldlist", class(ret))
-  attr(ret, "foldframe") <- foldframe
-  ret
+  build_multidesign_foldlist(x, foldframe)
 }
 
 

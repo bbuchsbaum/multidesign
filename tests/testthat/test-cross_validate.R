@@ -147,3 +147,32 @@ test_that("cross_validate with multiframe folds", {
   expect_equal(nrow(result$scores), 2)
   expect_true("mse" %in% names(result$scores))
 })
+
+test_that("cross_validate passes optional fold context to score_fn", {
+  X <- matrix(rnorm(24), 6, 4)
+  Y <- data.frame(group = rep(c("A", "B"), each = 3))
+  mds <- multidesign(X, Y)
+  folds <- cv_rows(mds, rows = list(c(1, 2), c(5, 6)))
+
+  result <- cross_validate(
+    folds,
+    fit_fn = function(analysis) {
+      list(mean = colMeans(xdata(analysis)))
+    },
+    score_fn = function(model, assessment, fold, fold_id) {
+      c(
+        mse = mean((xdata(assessment) - matrix(
+          model$mean,
+          nrow = nrow(xdata(assessment)),
+          ncol = ncol(xdata(assessment)),
+          byrow = TRUE
+        ))^2),
+        fold_id = fold_id,
+        held_out_n = length(fold$held_out$rows)
+      )
+    }
+  )
+
+  expect_equal(result$scores$fold_id, c(1, 2))
+  expect_equal(result$scores$held_out_n, c(2, 2))
+})

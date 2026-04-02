@@ -256,6 +256,23 @@ run_folds <- fold_over(hd, run)
 length(run_folds)
 ```
 
+## Explicit row-based cross-validation
+
+When you already know the held-out rows, use `cv_rows()` to build a
+`foldlist` directly:
+
+```{r}
+row_folds <- cv_rows(
+  hd,
+  rows = list(
+    list(subj1 = 1:2, subj2 = 1:2),
+    list(subj1 = 3:4, subj2 = 3:4)
+  )
+)
+
+row_folds[[1]]$assessment
+```
+
 ## Collapse to a single multidesign
 
 If you need to analyze all subjects together:

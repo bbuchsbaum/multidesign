@@ -265,27 +265,7 @@ fold_over.multiframe <- function(x, ...) {
   args <- rlang::enquos(...)
   splits <- split_indices(x, !!!args)
   foldframe <- splits %>% dplyr::mutate(.fold = seq_len(dplyr::n()))
-
-  extract <- function(i) {
-    ind <- unlist(foldframe[["indices"]][[i]])
-
-    test_des <- x$design[ind, , drop = FALSE]
-    test_des$.index <- seq_len(nrow(test_des))
-    testdat <- structure(list(design = test_des), class = "multiframe")
-
-    train_des <- x$design[-ind, , drop = FALSE]
-    train_des$.index <- seq_len(nrow(train_des))
-    traindat <- structure(list(design = train_des), class = "multiframe")
-
-    list(analysis = traindat, assessment = testdat)
-  }
-
-  tlen <- nrow(foldframe)
-  ret <- deflist::deflist(extract, len = tlen)
-  names(ret) <- paste0("fold_", seq_along(ret))
-  class(ret) <- c("foldlist", class(ret))
-  attr(ret, "foldframe") <- foldframe
-  ret
+  build_multiframe_foldlist(x, foldframe)
 }
 
 #' Create an Observation Group

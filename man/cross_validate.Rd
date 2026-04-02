@@ -15,7 +15,9 @@ or multiframe object.}
 
 \item{score_fn}{A function that takes a model and the assessment set, and returns
 a single numeric value, a named numeric vector, or a named list of numeric values.
-Signature: \code{score_fn(model, assessment)}}
+Signature: \code{score_fn(model, assessment)}. If \code{score_fn} declares
+\code{fold}, \code{fold_id}, or \code{...}, the current fold object and fold
+index are also supplied.}
 
 \item{...}{Additional arguments (currently unused)}
 }
@@ -46,6 +48,14 @@ result <- cross_validate(
 )
 print(result)
 summary(result)
+
+result_with_context <- cross_validate(
+  folds,
+  fit_fn = function(analysis) list(mean = colMeans(xdata(analysis))),
+  score_fn = function(model, assessment, fold_id) {
+    c(mse = mean((xdata(assessment) - model$mean)^2), fold_id = fold_id)
+  }
+)
 
 }
 \seealso{

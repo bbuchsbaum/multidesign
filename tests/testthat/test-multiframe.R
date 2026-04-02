@@ -265,6 +265,23 @@ test_that("fold_over.multiframe creates valid folds with correct sizes", {
   expect_equal(nrow(f1$assessment$design), 5)
 })
 
+test_that("cv_rows.multiframe creates explicit row folds", {
+  X <- matrix(1:24, 6, 4)
+  Y <- data.frame(condition = letters[1:6])
+  mf <- multiframe(X, Y)
+
+  folds <- cv_rows(mf, rows = list(c(1, 2), c(5, 6)))
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 2)
+
+  f1 <- folds[[1]]
+  expect_s3_class(f1$analysis, "multiframe")
+  expect_s3_class(f1$assessment, "multiframe")
+  expect_equal(xdata(f1$assessment), X[c(1, 2), , drop = FALSE])
+  expect_equal(xdata(f1$analysis), X[-c(1, 2), , drop = FALSE])
+  expect_equal(f1$held_out$rows, c(1L, 2L))
+})
+
 test_that("[.observation_set extracts multiple observations", {
   X <- matrix(1:20, 5, 4)
   obs <- obs_group(X)

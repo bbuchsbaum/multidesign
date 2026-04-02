@@ -116,6 +116,55 @@ test_that("fold_over handles confounded variables correctly", {
   expect_no_error(fold_over(hd, value))
 })
 
+test_that("cv_rows.hyperdesign supports synchronized row holdouts", {
+  X1 <- matrix(1:30, 6, 5)
+  Y1 <- tibble(run = 1:6, subject = "s1")
+  X2 <- matrix(31:60, 6, 5)
+  Y2 <- tibble(run = 1:6, subject = "s2")
+
+  d1 <- multidesign(X1, Y1)
+  d2 <- multidesign(X2, Y2)
+  hd <- hyperdesign(list(d1, d2), block_names = c("subj1", "subj2"))
+
+  folds <- cv_rows(hd, rows = list(
+    list(subj1 = c(1, 2), subj2 = c(1, 2)),
+    list(subj1 = c(3, 4), subj2 = c(3, 4))
+  ))
+
+  expect_s3_class(folds, "foldlist")
+  expect_length(folds, 2)
+
+  f1 <- folds[[1]]
+  expect_s3_class(f1$analysis, "hyperdesign")
+  expect_s3_class(f1$assessment, "hyperdesign")
+  expect_equal(length(f1$assessment), 2)
+  expect_equal(f1$assessment[[1]]$x, X1[c(1, 2), , drop = FALSE])
+  expect_equal(f1$assessment[[2]]$x, X2[c(1, 2), , drop = FALSE])
+  expect_equal(f1$analysis[[1]]$x, X1[-c(1, 2), , drop = FALSE])
+  expect_equal(f1$analysis[[2]]$x, X2[-c(1, 2), , drop = FALSE])
+  expect_equal(f1$held_out$subj1, c(1L, 2L))
+  expect_equal(f1$held_out$subj2, c(1L, 2L))
+})
+
+test_that("cv_rows.hyperdesign validates explicit row folds", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
+  d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
+  hd <- hyperdesign(list(d1, d2), block_names = c("subj1", "subj2"))
+
+  expect_error(
+    cv_rows(hd, rows = list(list(subj1 = c(1, 1)))),
+    "must not contain duplicate row indices"
+  )
+  expect_error(
+    cv_rows(hd, rows = list(list(subj1 = 1:6))),
+    "cannot hold out all rows"
+  )
+  expect_error(
+    cv_rows(hd, rows = list(list(unknown = 1:2))),
+    "unknown hyperdesign blocks"
+  )
+})
+
 test_that("data extraction methods work correctly", {
   # Create test data
   X1 <- matrix(1:20, 4, 5)
@@ -300,6 +349,16 @@ test_that("print.foldlist does not error", {
   # Also test with variable-based folds
   folds2 <- fold_over(hd, cond)
   expect_output(print(folds2), "Cross-Validation Folds")
+})
+
+test_that("print.foldlist formats nested held-out metadata", {
+  d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
+  d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
+  hd <- hyperdesign(list(d1, d2), block_names = c("subj1", "subj2"))
+
+  folds <- cv_rows(hd, rows = list(list(subj1 = 1:2, subj2 = 1:2)))
+  expect_output(print(folds), "subj1")
+  expect_output(print(folds), "subj2")
 })
 
 test_that("subset.hyperdesign errors when nothing matches", {

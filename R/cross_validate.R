@@ -11,7 +11,9 @@
 #'   or multiframe object.
 #' @param score_fn A function that takes a model and the assessment set, and returns
 #'   a single numeric value, a named numeric vector, or a named list of numeric values.
-#'   Signature: \code{score_fn(model, assessment)}
+#'   Signature: \code{score_fn(model, assessment)}. If \code{score_fn} declares
+#'   \code{fold}, \code{fold_id}, or \code{...}, the current fold object and fold
+#'   index are also supplied.
 #' @param ... Additional arguments (currently unused)
 #'
 #' @return A \code{cv_result} object containing a tibble of per-fold scores
@@ -36,6 +38,14 @@
 #' print(result)
 #' summary(result)
 #'
+#' result_with_context <- cross_validate(
+#'   folds,
+#'   fit_fn = function(analysis) list(mean = colMeans(xdata(analysis))),
+#'   score_fn = function(model, assessment, fold_id) {
+#'     c(mse = mean((xdata(assessment) - model$mean)^2), fold_id = fold_id)
+#'   }
+#' )
+#'
 #' @seealso
 #'   \code{\link{fold_over}} for creating folds,
 #'   \code{\link{new_cv_result}} for the result structure
@@ -48,7 +58,18 @@ cross_validate <- function(folds, fit_fn, score_fn, ...) {
   all_scores <- lapply(seq_along(folds), function(i) {
     fold <- folds[[i]]
     model <- fit_fn(fold$analysis)
-    score <- score_fn(model, fold$assessment)
+    score_formals <- names(formals(score_fn))
+    has_dots <- "..." %in% score_formals
+    score_args <- list(model, fold$assessment)
+
+    if (has_dots || "fold" %in% score_formals) {
+      score_args$fold <- fold
+    }
+    if (has_dots || "fold_id" %in% score_formals) {
+      score_args$fold_id <- i
+    }
+
+    score <- do.call(score_fn, score_args)
 
     # Normalize score to a named list
     if (is.list(score)) {
