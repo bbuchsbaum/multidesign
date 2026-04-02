@@ -264,7 +264,7 @@ length(within_folds)
 # Explicit synchronized row holdouts
 row_folds <- cv_rows(
   hd,
-  rows = list(list(subj1 = 1:2, subj2 = 1:2)),
+  rows = list(list(subject_1 = 1:2, subject_2 = 1:2)),
   preserve_row_ids = TRUE
 )
 row_folds[[1]]$assessment[[1]]$design$.orig_index
