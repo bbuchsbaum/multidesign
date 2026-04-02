@@ -57,7 +57,151 @@
 </h1></div>
 <!-- badges: start -->
 
-<p>The goal of multidesign is to …</p>
+<p><code>multidesign</code> is an R package for multivariate experimental data where the matrix alone is not enough. It keeps observation-level design metadata and variable-level metadata attached to the data, so subsetting, grouping, splitting, and cross-validation stay aligned.</p>
+<p>This is especially useful for workflows in neuroimaging, behavioral science, psychophysics, and other settings where you need to manage:</p>
+<ul>
+<li>observations such as trials, scans, or time points</li>
+<li>variables such as ROIs, sensors, or engineered features</li>
+<li>row-wise design factors such as condition, run, session, or subject</li>
+<li>multi-block datasets spanning subjects, sessions, or modalities</li>
+</ul>
+<div class="section level2">
+<h2 id="why-use-multidesign">Why use <code>multidesign</code>?<a class="anchor" aria-label="anchor" href="#why-use-multidesign"></a>
+</h2>
+<ul>
+<li>Keep the data matrix, row design, and optional column metadata in one object.</li>
+<li>Filter observations with design-aware <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> semantics.</li>
+<li>Select variables using column metadata via <code><a href="reference/select_variables.html">select_variables()</a></code>.</li>
+<li>Split and summarize by experimental factors with <code><a href="https://rdrr.io/r/base/split.html" class="external-link">split()</a></code> and <code><a href="reference/summarize_by.html">summarize_by()</a></code>.</li>
+<li>Build cross-validation folds that respect your design with <code><a href="reference/fold_over.html">fold_over()</a></code> and <code><a href="reference/cv_rows.html">cv_rows()</a></code>.</li>
+<li>Scale from a single matrix to multi-subject or lazy-loading workflows with <code>hyperdesign</code> and <code>multiframe</code>.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p><code>multidesign</code> is not on CRAN yet. Install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"remotes"</span><span class="op">)</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"bbuchsbaum/multidesign"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="core-objects">Core objects<a class="anchor" aria-label="anchor" href="#core-objects"></a>
+</h2>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Class</th>
+<th>Use it when…</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>multidesign</code></td>
+<td>You have one data matrix plus row-wise design information and optional column metadata.</td>
+</tr>
+<tr class="even">
+<td><code>hyperdesign</code></td>
+<td>You have multiple related <code>multidesign</code> objects, such as one per subject or session.</td>
+</tr>
+<tr class="odd">
+<td><code>multiframe</code></td>
+<td>Your observations are expensive to materialize and you want lazy evaluation.</td>
+</tr>
+<tr class="even">
+<td><code>multiblock</code></td>
+<td>You need lower-level stacked matrix operations without the full design abstraction.</td>
+</tr>
+</tbody>
+</table>
+<p>Most workflows start with <code>multidesign</code> and move to <code>hyperdesign</code> when the data naturally breaks into subject-, session-, or modality-level blocks.</p>
+</div>
+<div class="section level2">
+<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://bbuchsbaum.github.io/multidesign/">multidesign</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Simulate a trial-by-feature matrix</span></span>
+<span><span class="va">X</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">40</span> <span class="op">*</span> <span class="fl">8</span><span class="op">)</span>, nrow <span class="op">=</span> <span class="fl">40</span>, ncol <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Design metadata for each observation</span></span>
+<span><span class="va">design_df</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"house"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>,</span>
+<span>  run <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, each <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>,</span>
+<span>  trial <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">40</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Metadata for each variable / column</span></span>
+<span><span class="va">column_df</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span>
+<span>  roi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"ROI_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">8</span><span class="op">)</span>,</span>
+<span>  network <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"visual"</span>, <span class="st">"frontal"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Build a multidesign object</span></span>
+<span><span class="va">md</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/multidesign.html">multidesign</a></span><span class="op">(</span><span class="va">X</span>, <span class="va">design_df</span>, <span class="va">column_df</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Row-wise and column-wise access stay synchronized</span></span>
+<span><span class="va">face_trials</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">md</span>, <span class="va">condition</span> <span class="op">==</span> <span class="st">"face"</span><span class="op">)</span></span>
+<span><span class="va">visual_rois</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/select_variables.html">select_variables</a></span><span class="op">(</span><span class="va">md</span>, <span class="va">network</span> <span class="op">==</span> <span class="st">"visual"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Summarize by an experimental factor</span></span>
+<span><span class="va">condition_means</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/summarize_by.html">summarize_by</a></span><span class="op">(</span><span class="va">md</span>, <span class="va">condition</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Create design-aware cross-validation folds</span></span>
+<span><span class="va">folds</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fold_over.html">fold_over</a></span><span class="op">(</span><span class="va">md</span>, <span class="va">run</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Run a simple CV pipeline</span></span>
+<span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cross_validate.html">cross_validate</a></span><span class="op">(</span></span>
+<span>  <span class="va">folds</span>,</span>
+<span>  fit_fn <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">analysis</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="fu"><a href="reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">analysis</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span>,</span>
+<span>  score_fn <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">model</span>, <span class="va">assessment</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">assessment</span><span class="op">)</span></span>
+<span>    <span class="va">pred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>      <span class="va">model</span><span class="op">$</span><span class="va">mean</span>,</span>
+<span>      nrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">mat</span><span class="op">)</span>,</span>
+<span>      ncol <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">mat</span><span class="op">)</span>,</span>
+<span>      byrow <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>    <span class="op">)</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mse <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="op">(</span><span class="va">mat</span> <span class="op">-</span> <span class="va">pred</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">cv</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="typical-workflow">Typical workflow<a class="anchor" aria-label="anchor" href="#typical-workflow"></a>
+</h2>
+<ol style="list-style-type: decimal">
+<li>Create a <code>multidesign</code> from a matrix and a design table.</li>
+<li>Subset rows by design variables and columns by variable metadata.</li>
+<li>Summarize or split by condition, run, subject, or any other design factor.</li>
+<li>Generate folds with <code><a href="reference/fold_over.html">fold_over()</a></code> or <code><a href="reference/cv_rows.html">cv_rows()</a></code>.</li>
+<li>Pass those folds into <code><a href="reference/cross_validate.html">cross_validate()</a></code> with your model-fitting and scoring functions.</li>
+<li>Move to <code>hyperdesign</code> when the analysis spans multiple related blocks.</li>
+</ol>
+</div>
+<div class="section level2">
+<h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
+</h2>
+<ul>
+<li><a href="https://bbuchsbaum.github.io/multidesign/">Package website</a></li>
+<li><a href="vignettes/Introduction.Rmd">Getting started vignette</a></li>
+<li><a href="vignettes/class_overview.Rmd">Class overview vignette</a></li>
+<li><a href="https://github.com/bbuchsbaum/multidesign/issues" class="external-link">Issue tracker</a></li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="development-status">Development status<a class="anchor" aria-label="anchor" href="#development-status"></a>
+</h2>
+<p>The package already includes tests for the core data structures and cross-validation pipeline, but the API is still evolving. Expect the README and vignettes to be the best entry points while the package matures.</p>
+</div>
 </div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
