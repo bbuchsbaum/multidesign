@@ -19,3 +19,4 @@
 ^\.omc$
 ^\.rcmdcheck_result\.rds$
 ^\.covr_result\.rds$
+^\.github$
