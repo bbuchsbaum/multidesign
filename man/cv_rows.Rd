@@ -9,11 +9,11 @@
 \usage{
 cv_rows(x, rows, ...)
 
-\method{cv_rows}{multidesign}(x, rows, ...)
+\method{cv_rows}{multidesign}(x, rows, preserve_row_ids = FALSE, ...)
 
-\method{cv_rows}{multiframe}(x, rows, ...)
+\method{cv_rows}{multiframe}(x, rows, preserve_row_ids = FALSE, ...)
 
-\method{cv_rows}{hyperdesign}(x, rows, ...)
+\method{cv_rows}{hyperdesign}(x, rows, preserve_row_ids = FALSE, ...)
 }
 \arguments{
 \item{x}{The dataset to fold over (`multidesign`, `hyperdesign`, or `multiframe`).}
@@ -24,6 +24,10 @@ cv_rows(x, rows, ...)
   elements are integer vectors of row indices, keyed by block name or block position.}
 
 \item{...}{Additional arguments passed to methods (currently unused).}
+
+\item{preserve_row_ids}{Logical; if `TRUE`, carry original source row ids into
+fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+Where `held_out` metadata is present, matching `row_ids` are also included.}
 }
 \value{
 A `foldlist` object containing `analysis`, `assessment`, and optional
@@ -42,6 +46,8 @@ mds <- multidesign(X, Y)
 
 folds <- cv_rows(mds, rows = list(1:2, 6:7))
 folds[[1]]$assessment
+folds_with_ids <- cv_rows(mds, rows = list(1:2), preserve_row_ids = TRUE)
+folds_with_ids[[1]]$assessment$design$.orig_index
 
 d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
 d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))

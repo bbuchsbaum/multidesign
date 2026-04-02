@@ -199,9 +199,9 @@ split_indices.multiframe <- function(x, ..., collapse = FALSE) {
   design_copy <- x$design
   design_copy$.obs <- NULL
 
-  # Convert numeric variables to factors for proper grouping, excluding .index
+  # Convert numeric variables to factors for proper grouping, excluding row index metadata
   design_copy <- design_copy %>%
-    dplyr::mutate(dplyr::across(tidyselect::where(is.numeric) & !tidyselect::any_of(".index"), as.factor))
+    dplyr::mutate(dplyr::across(tidyselect::where(is.numeric) & !tidyselect::any_of(c(".index", ".orig_index")), as.factor))
 
   ret <- design_copy %>% dplyr::nest_by(!!!nest.by, .keep = TRUE)
   xl <- ret$data %>% purrr::map(~ .x$.index)
@@ -261,11 +261,14 @@ subset.multiframe <- function(x, fexpr, ...) {
 
 #' @rdname fold_over
 #' @export
-fold_over.multiframe <- function(x, ...) {
+#' @param preserve_row_ids Logical; if `TRUE`, carry original source row ids into
+#'   fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+#'   Matching `held_out$row_ids` metadata is also included.
+fold_over.multiframe <- function(x, ..., preserve_row_ids = FALSE) {
   args <- rlang::enquos(...)
   splits <- split_indices(x, !!!args)
   foldframe <- splits %>% dplyr::mutate(.fold = seq_len(dplyr::n()))
-  build_multiframe_foldlist(x, foldframe)
+  build_multiframe_foldlist(x, foldframe, preserve_row_ids = preserve_row_ids)
 }
 
 #' Create an Observation Group
@@ -530,7 +533,7 @@ print.multiframe <- function(x, ...) {
   
   # Basic information
   n_obs <- nrow(x$design)
-  design_vars <- names(x$design)[!names(x$design) %in% c(".index", ".obs")]
+  design_vars <- names(x$design)[!names(x$design) %in% c(".index", ".orig_index", ".obs")]
   
   cat("\n", crayon::green(paste0("Number of Observations: ", n_obs)), "\n")
   

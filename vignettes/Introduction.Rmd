@@ -173,6 +173,14 @@ nrow(xdata(fold1$analysis))
 nrow(xdata(fold1$assessment))
 ```
 
+If downstream code needs stable source-row identities, ask fold construction to
+carry them through:
+
+```{r}
+folds_with_ids <- fold_over(mds, run, preserve_row_ids = TRUE)
+folds_with_ids[[1]]$assessment$design$.orig_index
+```
+
 ## Step 7: Run a cross-validation pipeline
 
 Use `cross_validate()` to execute a complete CV workflow:
@@ -271,6 +279,20 @@ row_folds <- cv_rows(
 )
 
 row_folds[[1]]$assessment
+```
+
+Use `preserve_row_ids = TRUE` here as well if external correspondence tables or
+annotations are keyed by original rows:
+
+```{r}
+row_folds_with_ids <- cv_rows(
+  hd,
+  rows = list(list(subj1 = 1:2, subj2 = 1:2)),
+  preserve_row_ids = TRUE
+)
+
+row_folds_with_ids[[1]]$assessment[[1]]$design$.orig_index
+row_folds_with_ids[[1]]$held_out$row_ids
 ```
 
 ## Collapse to a single multidesign

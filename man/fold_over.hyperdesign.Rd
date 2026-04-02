@@ -4,7 +4,13 @@
 \alias{fold_over.hyperdesign}
 \title{Create Cross-Validation Folds from a Hyperdesign Object}
 \usage{
-\method{fold_over}{hyperdesign}(x, ..., inclusion_condition = list(), exclusion_condition = list())
+\method{fold_over}{hyperdesign}(
+  x,
+  ...,
+  inclusion_condition = list(),
+  exclusion_condition = list(),
+  preserve_row_ids = FALSE
+)
 }
 \arguments{
 \item{x}{A hyperdesign object}
@@ -14,6 +20,10 @@
 \item{inclusion_condition}{Optional list specifying values to include in assessment sets}
 
 \item{exclusion_condition}{Optional list specifying values to exclude from assessment sets}
+
+\item{preserve_row_ids}{Logical; if `TRUE`, carry original source row ids into
+fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+Matching `held_out$row_ids` metadata is also included.}
 }
 \value{
 A foldlist object containing the cross-validation folds

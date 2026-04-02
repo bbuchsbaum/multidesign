@@ -338,6 +338,8 @@ summarize_by <- function(x, ...) UseMethod("summarize_by")
 #' @param x The dataset to fold over (multidesign, hyperdesign, matrix, etc.)
 #' @param ... Additional arguments passed to methods:
 #'   * For multidesign/hyperdesign: unquoted names of variables to split on
+#'   * For multidesign/hyperdesign/multiframe: `preserve_row_ids = TRUE` to carry
+#'     original source row ids into fold outputs via a reserved `.orig_index` column
 #'   * For matrices: nfolds (number of folds), stratum (stratification variable)
 #'
 #' @return A foldlist object containing:

@@ -232,9 +232,9 @@ split.multidesign <- function(x, f, drop=FALSE, ...) {
 split_indices.multidesign <- function(x, ..., collapse=FALSE) {
   nest.by <- rlang::quos(...)
 
-  # Convert numeric variables to factors for proper grouping, excluding .index
+  # Convert numeric variables to factors for proper grouping, excluding row index metadata
   design_copy <- x$design %>%
-    mutate(across(where(is.numeric) & !any_of(".index"), as.factor))
+    mutate(across(where(is.numeric) & !any_of(c(".index", ".orig_index")), as.factor))
 
   ret <- design_copy %>% nest_by(!!!nest.by, .keep=TRUE)
   xl <- ret$data %>% purrr::map(~ .x$.index)
@@ -334,13 +334,16 @@ select_variables.multidesign <- function(x, ...) {
 }
 
 #' @rdname fold_over
+#' @param preserve_row_ids Logical; if `TRUE`, carry original source row ids into
+#'   fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+#'   Matching `held_out$row_ids` metadata is also included.
 #' @export
 #' @importFrom deflist deflist
-fold_over.multidesign <- function(x, ...) {
+fold_over.multidesign <- function(x, ..., preserve_row_ids = FALSE) {
   args <- rlang::enquos(...)
   splits <- split_indices(x, !!!args)
   foldframe <- splits %>% mutate(.fold = seq_len(n()))
-  build_multidesign_foldlist(x, foldframe)
+  build_multidesign_foldlist(x, foldframe, preserve_row_ids = preserve_row_ids)
 }
 
 
@@ -365,7 +368,7 @@ print.multidesign <- function(x, ...) {
 
   # Design variables
   cat("\nDesign Variables: \n")
-  design_vars <- names(x$design)[!names(x$design) %in% c(".index")]
+  design_vars <- names(x$design)[!names(x$design) %in% c(".index", ".orig_index")]
   for (var in design_vars) {
     unique_vals <- unique(x$design[[var]])
     n_unique <- length(unique_vals)
@@ -430,7 +433,7 @@ print.reduced_multidesign <- function(x, ...) {
   # Design variables
   cat(crayon::bold("\nDesign Variables:"), "\n")
   design_vars <- names(x$design)
-  design_vars <- design_vars[design_vars != ".index"]
+  design_vars <- design_vars[!design_vars %in% c(".index", ".orig_index")]
   for (var in design_vars) {
     unique_vals <- unique(x$design[[var]])
     n_unique <- length(unique_vals)

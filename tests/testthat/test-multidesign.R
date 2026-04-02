@@ -210,6 +210,35 @@ test_that("cv_rows.multidesign creates explicit row folds", {
   expect_equal(f1$held_out$rows, c(1L, 3L))
 })
 
+test_that("preserve_row_ids keeps original row ids across nested multidesign folds", {
+  X <- matrix(1:24, 6, 4)
+  Y <- tibble(condition = rep(c("A", "B"), each = 3))
+  md <- multidesign(X, Y)
+
+  outer_fold <- cv_rows(md, rows = list(c(2, 5)), preserve_row_ids = TRUE)[[1]]
+  expect_equal(outer_fold$assessment$design$.orig_index, c(2L, 5L))
+  expect_equal(outer_fold$analysis$design$.orig_index, c(1L, 3L, 4L, 6L))
+  expect_equal(outer_fold$held_out$row_ids, c(2L, 5L))
+
+  nested_fold <- cv_rows(outer_fold$analysis, rows = list(c(1, 2)), preserve_row_ids = TRUE)[[1]]
+  expect_equal(nested_fold$assessment$design$.orig_index, c(1L, 3L))
+  expect_equal(nested_fold$held_out$row_ids, c(1L, 3L))
+})
+
+test_that("fold_over.multidesign can preserve original row ids", {
+  X <- matrix(rnorm(40), 10, 4)
+  Y <- tibble(condition = rep(c("A", "B"), each = 5))
+  md <- multidesign(X, Y)
+
+  folds <- fold_over(md, condition, preserve_row_ids = TRUE)
+  f1 <- folds[[1]]
+
+  expect_true(".orig_index" %in% names(f1$assessment$design))
+  expect_equal(f1$assessment$design$.orig_index, 1:5)
+  expect_equal(f1$analysis$design$.orig_index, 6:10)
+  expect_equal(f1$held_out$row_ids, 1:5)
+})
+
 test_that("cv_rows.multidesign validates explicit row folds", {
   X <- matrix(rnorm(24), 6, 4)
   Y <- tibble(condition = letters[1:6])

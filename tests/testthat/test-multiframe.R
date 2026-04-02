@@ -282,6 +282,19 @@ test_that("cv_rows.multiframe creates explicit row folds", {
   expect_equal(f1$held_out$rows, c(1L, 2L))
 })
 
+test_that("fold_over.multiframe can preserve original row ids", {
+  X <- matrix(1:24, 6, 4)
+  Y <- data.frame(condition = rep(c("A", "B"), each = 3))
+  mf <- multiframe(X, Y)
+
+  folds <- fold_over(mf, condition, preserve_row_ids = TRUE)
+  f1 <- folds[[1]]
+
+  expect_equal(f1$assessment$design$.orig_index, 1:3)
+  expect_equal(f1$analysis$design$.orig_index, 4:6)
+  expect_equal(f1$held_out$row_ids, 1:3)
+})
+
 test_that("[.observation_set extracts multiple observations", {
   X <- matrix(1:20, 5, 4)
   obs <- obs_group(X)

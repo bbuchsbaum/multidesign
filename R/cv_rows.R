@@ -11,6 +11,9 @@
 #'   * For `multidesign` and `multiframe`, supply a list of integer vectors, one per fold.
 #'   * For `hyperdesign`, supply a list of per-fold block mappings. Each fold is a list whose
 #'     elements are integer vectors of row indices, keyed by block name or block position.
+#' @param preserve_row_ids Logical; if `TRUE`, carry original source row ids into
+#'   fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+#'   Where `held_out` metadata is present, matching `row_ids` are also included.
 #' @param ... Additional arguments passed to methods (currently unused).
 #'
 #' @return A `foldlist` object containing `analysis`, `assessment`, and optional
@@ -23,6 +26,8 @@
 #'
 #' folds <- cv_rows(mds, rows = list(1:2, 6:7))
 #' folds[[1]]$assessment
+#' folds_with_ids <- cv_rows(mds, rows = list(1:2), preserve_row_ids = TRUE)
+#' folds_with_ids[[1]]$assessment$design$.orig_index
 #'
 #' d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
 #' d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
@@ -88,13 +93,34 @@ normalize_simple_row_folds <- function(rows, n_rows, object_label) {
   })
 }
 
-slice_multidesign_rows <- function(x, indices) {
-  design_subset <- x$design[indices, , drop = FALSE]
+source_row_ids <- function(design_subset) {
+  if (".orig_index" %in% names(design_subset)) {
+    as.integer(design_subset$.orig_index)
+  } else {
+    as.integer(design_subset$.index)
+  }
+}
+
+prepare_design_row_ids <- function(design_subset, preserve_row_ids = FALSE) {
+  row_ids <- source_row_ids(design_subset)
+
+  if (preserve_row_ids) {
+    design_subset$.orig_index <- row_ids
+  } else if (".orig_index" %in% names(design_subset)) {
+    design_subset$.orig_index <- NULL
+  }
+
+  list(design = design_subset, row_ids = row_ids)
+}
+
+slice_multidesign_rows <- function(x, indices, preserve_row_ids = FALSE) {
+  prepared <- prepare_design_row_ids(x$design[indices, , drop = FALSE], preserve_row_ids = preserve_row_ids)
+  design_subset <- prepared$design
   design_subset$.index <- NULL
   multidesign(x$x[indices, , drop = FALSE], design_subset, x$column_design)
 }
 
-exclude_multidesign_rows <- function(x, indices, drop_empty = FALSE) {
+exclude_multidesign_rows <- function(x, indices, drop_empty = FALSE, preserve_row_ids = FALSE) {
   keep <- setdiff(seq_len(nrow(x$x)), indices)
   if (length(keep) == 0) {
     if (drop_empty) {
@@ -102,24 +128,39 @@ exclude_multidesign_rows <- function(x, indices, drop_empty = FALSE) {
     }
     stop("Each fold must leave at least one training row in every affected block.")
   }
-  slice_multidesign_rows(x, keep)
+  slice_multidesign_rows(x, keep, preserve_row_ids = preserve_row_ids)
 }
 
-slice_multiframe_rows <- function(x, indices) {
-  design_subset <- x$design[indices, , drop = FALSE]
+slice_multiframe_rows <- function(x, indices, preserve_row_ids = FALSE) {
+  prepared <- prepare_design_row_ids(x$design[indices, , drop = FALSE], preserve_row_ids = preserve_row_ids)
+  design_subset <- prepared$design
   design_subset$.index <- seq_len(nrow(design_subset))
   structure(list(design = design_subset), class = "multiframe")
 }
 
-exclude_multiframe_rows <- function(x, indices) {
+exclude_multiframe_rows <- function(x, indices, preserve_row_ids = FALSE) {
   keep <- setdiff(seq_len(nrow(x$design)), indices)
   if (length(keep) == 0) {
     stop("Each fold must leave at least one training row in the multiframe.")
   }
-  slice_multiframe_rows(x, keep)
+  slice_multiframe_rows(x, keep, preserve_row_ids = preserve_row_ids)
 }
 
-build_multidesign_foldlist <- function(x, foldframe, held_out = NULL) {
+merge_held_out_row_ids <- function(held_out, row_ids, preserve_row_ids = FALSE) {
+  if (!preserve_row_ids) {
+    return(held_out)
+  }
+
+  if (is.null(held_out)) {
+    return(list(row_ids = row_ids))
+  }
+  if (is.list(held_out) && !("row_ids" %in% names(held_out))) {
+    held_out$row_ids <- row_ids
+  }
+  held_out
+}
+
+build_multidesign_foldlist <- function(x, foldframe, held_out = NULL, preserve_row_ids = FALSE) {
   fold_ids <- unique(foldframe$.fold)
   if (is.null(held_out)) {
     held_out <- vector("list", length(fold_ids))
@@ -133,13 +174,16 @@ build_multidesign_foldlist <- function(x, foldframe, held_out = NULL) {
 
     indices <- fold_row$indices[[1]]
     fold <- list(
-      analysis = exclude_multidesign_rows(x, indices),
-      assessment = slice_multidesign_rows(x, indices)
+      analysis = exclude_multidesign_rows(x, indices, preserve_row_ids = preserve_row_ids),
+      assessment = slice_multidesign_rows(x, indices, preserve_row_ids = preserve_row_ids)
     )
 
     fold_index <- match(fold_id, fold_ids)
-    if (!is.null(held_out[[fold_index]])) {
-      fold$held_out <- held_out[[fold_index]]
+    held_out_info <- held_out[[fold_index]]
+    row_ids <- source_row_ids(x$design[indices, , drop = FALSE])
+    held_out_info <- merge_held_out_row_ids(held_out_info, row_ids, preserve_row_ids = preserve_row_ids)
+    if (!is.null(held_out_info)) {
+      fold$held_out <- held_out_info
     }
 
     fold
@@ -148,7 +192,7 @@ build_multidesign_foldlist <- function(x, foldframe, held_out = NULL) {
   new_foldlist(extract, fold_ids, foldframe)
 }
 
-build_multiframe_foldlist <- function(x, foldframe, held_out = NULL) {
+build_multiframe_foldlist <- function(x, foldframe, held_out = NULL, preserve_row_ids = FALSE) {
   fold_ids <- unique(foldframe$.fold)
   if (is.null(held_out)) {
     held_out <- vector("list", length(fold_ids))
@@ -162,13 +206,16 @@ build_multiframe_foldlist <- function(x, foldframe, held_out = NULL) {
 
     indices <- fold_row$indices[[1]]
     fold <- list(
-      analysis = exclude_multiframe_rows(x, indices),
-      assessment = slice_multiframe_rows(x, indices)
+      analysis = exclude_multiframe_rows(x, indices, preserve_row_ids = preserve_row_ids),
+      assessment = slice_multiframe_rows(x, indices, preserve_row_ids = preserve_row_ids)
     )
 
     fold_index <- match(fold_id, fold_ids)
-    if (!is.null(held_out[[fold_index]])) {
-      fold$held_out <- held_out[[fold_index]]
+    held_out_info <- held_out[[fold_index]]
+    row_ids <- source_row_ids(x$design[indices, , drop = FALSE])
+    held_out_info <- merge_held_out_row_ids(held_out_info, row_ids, preserve_row_ids = preserve_row_ids)
+    if (!is.null(held_out_info)) {
+      fold$held_out <- held_out_info
     }
 
     fold
@@ -264,7 +311,8 @@ build_hyperdesign_foldlist <- function(x,
                                        foldframe,
                                        held_out = NULL,
                                        assessment_mode = c("multidesign", "hyperdesign"),
-                                       drop_empty_analysis_blocks = FALSE) {
+                                       drop_empty_analysis_blocks = FALSE,
+                                       preserve_row_ids = FALSE) {
   assessment_mode <- match.arg(assessment_mode)
   fold_ids <- unique(foldframe$.fold)
   block_names <- names(x)
@@ -280,7 +328,7 @@ build_hyperdesign_foldlist <- function(x,
     fold_rows <- foldframe[foldframe$.fold == fold_id, , drop = FALSE]
     assessment_blocks <- lapply(seq_len(nrow(fold_rows)), function(i) {
       block_pos <- fold_rows$.block[[i]]
-      slice_multidesign_rows(x[[block_pos]], fold_rows$indices[[i]])
+      slice_multidesign_rows(x[[block_pos]], fold_rows$indices[[i]], preserve_row_ids = preserve_row_ids)
     })
     assessment_names <- block_names[fold_rows$.block]
 
@@ -292,7 +340,8 @@ build_hyperdesign_foldlist <- function(x,
         exclude_multidesign_rows(
           x[[i]],
           fold_rows$indices[[match_idx[[1]]]],
-          drop_empty = drop_empty_analysis_blocks
+          drop_empty = drop_empty_analysis_blocks,
+          preserve_row_ids = preserve_row_ids
         )
       }
     })
@@ -322,8 +371,14 @@ build_hyperdesign_foldlist <- function(x,
     )
 
     fold_index <- match(fold_id, fold_ids)
-    if (!is.null(held_out[[fold_index]])) {
-      fold$held_out <- held_out[[fold_index]]
+    held_out_info <- held_out[[fold_index]]
+    row_ids <- stats::setNames(lapply(seq_len(nrow(fold_rows)), function(i) {
+      block_pos <- fold_rows$.block[[i]]
+      source_row_ids(x[[block_pos]]$design[fold_rows$indices[[i]], , drop = FALSE])
+    }), assessment_names)
+    held_out_info <- merge_held_out_row_ids(held_out_info, row_ids, preserve_row_ids = preserve_row_ids)
+    if (!is.null(held_out_info)) {
+      fold$held_out <- held_out_info
     }
 
     fold
@@ -334,7 +389,7 @@ build_hyperdesign_foldlist <- function(x,
 
 #' @rdname cv_rows
 #' @export
-cv_rows.multidesign <- function(x, rows, ...) {
+cv_rows.multidesign <- function(x, rows, preserve_row_ids = FALSE, ...) {
   rows <- normalize_simple_row_folds(rows, nrow(x$x), "multidesign")
   foldframe <- tibble::tibble(
     indices = rows,
@@ -342,12 +397,12 @@ cv_rows.multidesign <- function(x, rows, ...) {
     .fold = seq_along(rows)
   )
   held_out <- lapply(rows, function(indices) list(rows = indices))
-  build_multidesign_foldlist(x, foldframe, held_out = held_out)
+  build_multidesign_foldlist(x, foldframe, held_out = held_out, preserve_row_ids = preserve_row_ids)
 }
 
 #' @rdname cv_rows
 #' @export
-cv_rows.multiframe <- function(x, rows, ...) {
+cv_rows.multiframe <- function(x, rows, preserve_row_ids = FALSE, ...) {
   rows <- normalize_simple_row_folds(rows, nrow(x$design), "multiframe")
   foldframe <- tibble::tibble(
     indices = rows,
@@ -355,17 +410,18 @@ cv_rows.multiframe <- function(x, rows, ...) {
     .fold = seq_along(rows)
   )
   held_out <- lapply(rows, function(indices) list(rows = indices))
-  build_multiframe_foldlist(x, foldframe, held_out = held_out)
+  build_multiframe_foldlist(x, foldframe, held_out = held_out, preserve_row_ids = preserve_row_ids)
 }
 
 #' @rdname cv_rows
 #' @export
-cv_rows.hyperdesign <- function(x, rows, ...) {
+cv_rows.hyperdesign <- function(x, rows, preserve_row_ids = FALSE, ...) {
   normalized <- normalize_hyperdesign_row_folds(x, rows)
   build_hyperdesign_foldlist(
     x,
     normalized$foldframe,
     held_out = normalized$held_out,
-    assessment_mode = "hyperdesign"
+    assessment_mode = "hyperdesign",
+    preserve_row_ids = preserve_row_ids
   )
 }

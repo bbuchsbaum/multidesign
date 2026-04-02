@@ -154,7 +154,7 @@ hyperdesign.list <- function(x, block_names=NULL) {
            col_start=bind_col[i,1], col_end=bind_col[i,2])
   }) %>% bind_rows()
 
-  cvars <- lapply(x, function(z) setdiff(names(z$design), ".index"))
+  cvars <- lapply(x, function(z) setdiff(names(z$design), c(".index", ".orig_index")))
   cvars <- Reduce(intersect, cvars)
 
   structure(x,
@@ -270,8 +270,11 @@ init_transform.hyperdesign <- function(x, X, ...) {
 #' # Fold by condition within blocks
 #' folds_cond <- fold_over(hd, condition)
 #'
+#' @param preserve_row_ids Logical; if `TRUE`, carry original source row ids into
+#'   fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+#'   Matching `held_out$row_ids` metadata is also included.
 #' @export
-fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusion_condition = list()) {
+fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusion_condition = list(), preserve_row_ids = FALSE) {
   # Get the splitting variables properly
   dots <- rlang::enquos(...)
   split_vars <- sapply(dots, rlang::quo_name)
@@ -303,13 +306,20 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
       .splitvar = paste0("block_", seq_along(x)),
       .fold = seq_along(x)
     )
-    held_out <- lapply(seq_along(x), function(i) list(block = i))
+    held_out <- lapply(seq_along(x), function(i) {
+      info <- list(block = i)
+      if (preserve_row_ids) {
+        info$row_ids <- source_row_ids(x[[i]]$design)
+      }
+      info
+    })
     return(build_hyperdesign_foldlist(
       x,
       foldframe,
       held_out = held_out,
       assessment_mode = "multidesign",
-      drop_empty_analysis_blocks = TRUE
+      drop_empty_analysis_blocks = TRUE,
+      preserve_row_ids = preserve_row_ids
     ))
   } else {
     # Early detection of confounded variables
@@ -445,11 +455,17 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     test_design <- x[[block]]$design[ind, , drop = FALSE]
     filtered_test <- apply_conditions(test_design, inclusion_condition, exclusion_condition)
 
-    filtered_test %>%
-      dplyr::select(-dplyr::any_of(".index")) %>%
+    held_out_info <- filtered_test %>%
+      dplyr::select(-dplyr::any_of(c(".index", ".orig_index"))) %>%
       dplyr::distinct() %>%
       dplyr::slice(1) %>%
       as.list()
+
+    merge_held_out_row_ids(
+      held_out_info,
+      row_ids = source_row_ids(filtered_test),
+      preserve_row_ids = preserve_row_ids
+    )
   })
 
   valid_foldframe <- dplyr::bind_rows(valid_rows)
@@ -459,7 +475,8 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     x,
     valid_foldframe,
     held_out = held_out,
-    assessment_mode = "multidesign"
+    assessment_mode = "multidesign",
+    preserve_row_ids = preserve_row_ids
   )
 }
 
@@ -688,7 +705,7 @@ print.hyperdesign <- function(x, ...) {
 
     # Design variables
     design_vars <- names(block$design)
-    design_vars <- design_vars[design_vars != ".index"]
+    design_vars <- design_vars[!design_vars %in% c(".index", ".orig_index")]
     cat("| ", crayon::bold("Design Variables:"),
         crayon::green(paste(design_vars, collapse=", ")), "\n")
 

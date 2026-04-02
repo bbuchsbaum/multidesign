@@ -146,6 +146,34 @@ test_that("cv_rows.hyperdesign supports synchronized row holdouts", {
   expect_equal(f1$held_out$subj2, c(1L, 2L))
 })
 
+test_that("preserve_row_ids carries source ids through hyperdesign folds", {
+  X1 <- matrix(1:30, 6, 5)
+  Y1 <- tibble(condition = rep(c("A", "B"), each = 3), subject = "s1")
+  X2 <- matrix(31:60, 6, 5)
+  Y2 <- tibble(condition = rep(c("A", "B"), each = 3), subject = "s2")
+
+  d1 <- multidesign(X1, Y1)
+  d2 <- multidesign(X2, Y2)
+  hd <- hyperdesign(list(d1, d2), block_names = c("subj1", "subj2"))
+
+  folds <- fold_over(hd, condition, preserve_row_ids = TRUE)
+  f1 <- folds[[1]]
+  expect_equal(f1$assessment$design$.orig_index, 1:3)
+  expect_equal(f1$analysis[[1]]$design$.orig_index, 4:6)
+  expect_equal(f1$held_out$row_ids, 1:3)
+
+  row_folds <- cv_rows(
+    hd,
+    rows = list(list(subj1 = c(2, 3), subj2 = c(4, 5))),
+    preserve_row_ids = TRUE
+  )
+  rf1 <- row_folds[[1]]
+  expect_equal(rf1$assessment[[1]]$design$.orig_index, c(2L, 3L))
+  expect_equal(rf1$assessment[[2]]$design$.orig_index, c(4L, 5L))
+  expect_equal(rf1$held_out$row_ids$subj1, c(2L, 3L))
+  expect_equal(rf1$held_out$row_ids$subj2, c(4L, 5L))
+})
+
 test_that("cv_rows.hyperdesign validates explicit row folds", {
   d1 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))
   d2 <- multidesign(matrix(rnorm(30), 6, 5), data.frame(run = 1:6))

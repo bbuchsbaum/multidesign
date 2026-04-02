@@ -8,16 +8,22 @@
 \usage{
 fold_over(x, ...)
 
-\method{fold_over}{multidesign}(x, ...)
+\method{fold_over}{multidesign}(x, ..., preserve_row_ids = FALSE)
 
-\method{fold_over}{multiframe}(x, ...)
+\method{fold_over}{multiframe}(x, ..., preserve_row_ids = FALSE)
 }
 \arguments{
 \item{x}{The dataset to fold over (multidesign, hyperdesign, matrix, etc.)}
 
 \item{...}{Additional arguments passed to methods:
 * For multidesign/hyperdesign: unquoted names of variables to split on
+* For multidesign/hyperdesign/multiframe: `preserve_row_ids = TRUE` to carry
+  original source row ids into fold outputs via a reserved `.orig_index` column
 * For matrices: nfolds (number of folds), stratum (stratification variable)}
+
+\item{preserve_row_ids}{Logical; if `TRUE`, carry original source row ids into
+fold `analysis` and `assessment` designs via a reserved `.orig_index` column.
+Matching `held_out$row_ids` metadata is also included.}
 }
 \value{
 A foldlist object containing:

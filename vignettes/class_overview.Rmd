@@ -109,6 +109,7 @@ md
 | `select_variables(x, ...)` | Filter columns by column_design expression |
 | `summarize_by(x, ...)` | Compute group summaries |
 | `fold_over(x, ...)` | Create cross-validation folds |
+| `cv_rows(x, rows)` | Create folds from explicit row indices |
 | `split_indices(x, ...)` | Get row indices grouped by design variables |
 
 ## Examples
@@ -135,6 +136,10 @@ dim(xdata(md_means))
 # Create CV folds by condition
 folds <- fold_over(md, condition)
 length(folds)
+
+# Preserve original source row ids when needed downstream
+folds_with_ids <- fold_over(md, condition, preserve_row_ids = TRUE)
+head(folds_with_ids[[1]]$assessment$design$.orig_index)
 ```
 
 ---
@@ -228,6 +233,7 @@ hd
 | `select_variables(x, ...)` | Filter columns in all blocks |
 | `fold_over(x)` | Leave-one-block-out folds |
 | `fold_over(x, var)` | Within-block folds by variable |
+| `cv_rows(x, rows)` | Create synchronized row-index folds |
 | `as_multidesign(x)` | Collapse to single multidesign |
 | `block_indices(x, i)` | Get indices for block i |
 
@@ -254,6 +260,14 @@ class(f1$assessment)
 # Within-block CV by condition
 within_folds <- fold_over(hd, condition)
 length(within_folds)
+
+# Explicit synchronized row holdouts
+row_folds <- cv_rows(
+  hd,
+  rows = list(list(subj1 = 1:2, subj2 = 1:2)),
+  preserve_row_ids = TRUE
+)
+row_folds[[1]]$assessment[[1]]$design$.orig_index
 
 # Collapse to single multidesign
 md_collapsed <- as_multidesign(hd, .id = "subject")
@@ -334,6 +348,7 @@ mf_list <- multiframe(obs_list, tibble(condition = c("X", "Y", "Z")))
 | `split_indices(x, ...)` | Get indices grouped by design |
 | `summarize_by(x, ...)` | Compute group summaries |
 | `fold_over(x, ...)` | Create cross-validation folds |
+| `cv_rows(x, rows)` | Create folds from explicit row indices |
 
 ## Examples
 
@@ -355,6 +370,10 @@ mf$design$.obs[[1]]()
 # Create CV folds
 mf_folds <- fold_over(mf, group)
 length(mf_folds)
+
+# Preserve original source row ids in fold outputs
+mf_folds_with_ids <- fold_over(mf, group, preserve_row_ids = TRUE)
+mf_folds_with_ids[[1]]$assessment$design$.orig_index
 ```
 
 ---
@@ -423,7 +442,7 @@ is_rstacked(mb_t)
 
 ## Purpose
 
-A `foldlist` is returned by `fold_over()` and contains cross-validation folds. Each fold has an analysis set (training data) and an assessment set (test data).
+A `foldlist` is returned by `fold_over()` or `cv_rows()` and contains cross-validation folds. Each fold has an analysis set (training data) and an assessment set (test data).
 ## Structure
 
 Each element of a foldlist contains:
@@ -431,6 +450,10 @@ Each element of a foldlist contains:
 - `analysis`: The training data (same class as input)
 - `assessment`: The test data (same class as input, or `multidesign` for hyperdesign assessment)
 - `held_out`: Information about what was held out (optional)
+
+When folds are created with `preserve_row_ids = TRUE`, the fold outputs also
+carry a reserved `.orig_index` design column, and `held_out$row_ids` records
+the same source-row identities explicitly.
 
 ## Examples
 
@@ -453,6 +476,10 @@ nrow(xdata(f1$assessment))
 
 # The foldframe attribute contains fold metadata
 attr(folds, "foldframe")
+
+# Explicit row folds work too
+row_folds <- cv_rows(md, rows = list(1:2), preserve_row_ids = TRUE)
+row_folds[[1]]$held_out$row_ids
 ```
 
 ---
@@ -558,6 +585,7 @@ design(md_flat)
 | `select_variables()` | ✓ | ✓ | - | - |
 | `summarize_by()` | ✓ | - | ✓ | - |
 | `fold_over()` | ✓ | ✓ | ✓ | - |
+| `cv_rows()` | ✓ | ✓ | ✓ | - |
 | `split_indices()` | ✓ | - | ✓ | - |
 | `block_indices()` | - | ✓ | - | ✓ |
 | `is_cstacked()` | - | - | - | ✓ |
