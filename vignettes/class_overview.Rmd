@@ -7,10 +7,8 @@ output:
     css: albers.css
     includes:
       in_header: albers-header.html
-vignette: >
-  %\VignetteIndexEntry{Class Reference and Design Patterns}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+vignette: |
+  %\VignetteIndexEntry{Class Reference and Design Patterns} %\VignetteEngine{knitr::rmarkdown} %\VignetteEncoding{UTF-8}
 params:
   family: ochre
   preset: homage
@@ -42,6 +40,7 @@ cat(sprintf(
   params$preset
 ))
 ```
+
 
 # Overview
 
