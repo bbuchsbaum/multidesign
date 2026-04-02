@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 # multidesign
 
 <!-- badges: start -->
-[![Codecov test coverage](https://codecov.io/gh/bbuchsbaum/multidesign/branch/master/graph/badge.svg)](https://codecov.io/gh/bbuchsbaum/multidesign?branch=master)
+[![Codecov test coverage](https://codecov.io/gh/bbuchsbaum/multidesign/graph/badge.svg)](https://app.codecov.io/gh/bbuchsbaum/multidesign)
 <!-- badges: end -->
 
 `multidesign` is an R package for multivariate experimental data where the matrix alone is not enough. It keeps observation-level design metadata and variable-level metadata attached to the data, so subsetting, grouping, splitting, and cross-validation stay aligned.

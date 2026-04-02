@@ -6,7 +6,7 @@
 <!-- badges: start -->
 
 [![Codecov test
-coverage](https://codecov.io/gh/bbuchsbaum/multidesign/branch/master/graph/badge.svg)](https://codecov.io/gh/bbuchsbaum/multidesign?branch=master)
+coverage](https://codecov.io/gh/bbuchsbaum/multidesign/graph/badge.svg)](https://app.codecov.io/gh/bbuchsbaum/multidesign)
 <!-- badges: end -->
 
 `multidesign` is an R package for multivariate experimental data where
