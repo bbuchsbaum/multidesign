@@ -142,3 +142,11 @@ The package already includes tests for the core data structures and
 cross-validation pipeline, but the API is still evolving. Expect the
 README and vignettes to be the best entry points while the package
 matures.
+
+## Albers theme
+
+This package uses the albersdown theme. Existing vignette theme hooks
+are replaced so `albers.css` and local `albers.js` render consistently
+on CRAN and GitHub Pages. The defaults are configured via
+`params$family` and `params$preset` (family = “ochre”, preset =
+“homage”). The pkgdown site uses `template: { package: albersdown }`.
