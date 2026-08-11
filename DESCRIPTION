@@ -1,7 +1,7 @@
 Package: multidesign
 Type: Package
 Title: Tools for Managing Complex Experimental Designs and Multi-Block Data
-Version: 0.1.0
+Version: 0.1.0.9000
 Authors@R: person("Bradley R.", "Buchsbaum", 
     email = "brad.buchsbaum@gmail.com",
     role = c("aut", "cre", "cph"),
@@ -17,6 +17,7 @@ Imports:
     chk,
     tibble,
     dplyr,
+    fmridataset,
     multivarious,
     crayon,
     deflist,
@@ -38,5 +39,7 @@ Config/testthat/edition: 3
 URL: https://bbuchsbaum.github.io/multidesign/,
     https://github.com/bbuchsbaum/multidesign
 BugReports: https://github.com/bbuchsbaum/multidesign/issues
+Remotes:
+    bbuchsbaum/fmridataset
 VignetteBuilder: knitr
 Config/Needs/website: albersdown
