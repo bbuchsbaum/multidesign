@@ -10,6 +10,9 @@
 #'   [stats::model.matrix()].
 #' @param na_action Missing-value policy, either `"fail"` or `"omit"`.
 #' @return A serializable `design_spec`.
+#' @details Fixed formulas are compiled against relation-resolved observation
+#'   metadata. Random formulas must contain at least one grouping term; `mv()`
+#'   is currently restricted to fixed-effects formula algebra.
 #' @export
 design_spec <- function(
   fixed,
@@ -43,7 +46,9 @@ design_spec <- function(
 #' Multivariate block formula special
 #'
 #' `mv()` marks a named observation- or entity-aligned `axis_block` for
-#' expansion by [compile_design()]. It is meaningful only inside a formula.
+#' expansion by [compile_design()]. Blocks are resolved through the frame's
+#' relation registry and must be two dimensional. It is meaningful only as a
+#' term in fixed-effects formula algebra.
 #'
 #' @param block Unquoted block name, optionally qualified by an entity name,
 #'   such as `motion` or `stimulus.visual_pca`.
@@ -57,7 +62,12 @@ mv <- function(block, components = NULL) {
 }
 
 .is_mv_call <- function(x) {
-  is.call(x) && identical(x[[1L]], as.name("mv"))
+  if (!is.call(x)) return(FALSE)
+  if (identical(x[[1L]], as.name("mv"))) return(TRUE)
+  head <- x[[1L]]
+  is.call(head) && identical(head[[1L]], as.name("::")) &&
+    identical(as.character(head[[2L]]), "multidesign") &&
+    identical(as.character(head[[3L]]), "mv")
 }
 
 .mv_call_key <- function(x) paste(deparse(x, width.cutoff = 500L), collapse = "")
@@ -70,6 +80,23 @@ mv <- function(block, components = NULL) {
     return(list())
   }
   unlist(lapply(as.list(x)[-1L], .collect_mv_calls), recursive = FALSE)
+}
+
+.validate_mv_formula_context <- function(x) {
+  if (.is_mv_call(x) || !is.call(x)) return(invisible(TRUE))
+  contains_mv <- length(.collect_mv_calls(x)) > 0L
+  head <- x[[1L]]
+  allowed <- is.symbol(head) && as.character(head) %in% c(
+    "+", "-", "*", ":", "/", "^", "("
+  )
+  if (contains_mv && !allowed) {
+    stop(
+      "`mv()` must appear as a formula term or within formula algebra; wrapping it in another function is ambiguous.",
+      call. = FALSE
+    )
+  }
+  for (value in as.list(x)[-1L]) .validate_mv_formula_context(value)
+  invisible(TRUE)
 }
 
 .replace_mv_calls <- function(x, replacements) {
@@ -90,16 +117,41 @@ mv <- function(block, components = NULL) {
   Reduce(function(left, right) call("+", left, right), expressions)
 }
 
-.frame_entities <- function(frame) {
-  if (inherits(frame, "fmri_view")) frame$base$entities else frame$entities
-}
-
-.block_matrix <- function(block) {
+.block_matrix <- function(block, component_index) {
   value <- fmridataset::axis_block_data(block)
   if (inherits(value, "array_source")) {
-    value <- fmridataset::source_read(value)
+    return(fmridataset::source_read(
+      value,
+      observations = seq_len(fmridataset::source_shape(value)[[1L]]),
+      features = component_index
+    ))
   }
-  as.matrix(value)
+  as.matrix(value)[, component_index, drop = FALSE]
+}
+
+.parse_mv_call <- function(x) {
+  matched <- tryCatch(
+    match.call(definition = mv, call = x, expand.dots = FALSE),
+    error = function(error) {
+      stop(
+        "`mv()` accepts only `block` and optional `components` arguments.",
+        call. = FALSE
+      )
+    }
+  )
+  if (is.null(matched$block)) {
+    stop("`mv()` requires an unquoted block name.", call. = FALSE)
+  }
+  if (!is.symbol(matched$block)) {
+    stop(
+      "`mv()` block must be one unquoted block name such as `motion` or `stimulus.visual_pca`.",
+      call. = FALSE
+    )
+  }
+  list(
+    target = as.character(matched$block),
+    selection = if (!is.null(matched$components)) matched$components else NULL
+  )
 }
 
 .select_block_components <- function(block, selection, environment) {
@@ -109,10 +161,26 @@ mv <- function(block, components = NULL) {
     return(seq_along(ids))
   }
   selection <- eval(selection, envir = environment)
+  if (is.null(selection)) return(seq_along(ids))
   if (is.character(selection)) {
+    if (!length(selection) || anyNA(selection) || any(!nzchar(selection)) ||
+        anyDuplicated(selection)) {
+      stop("`mv()` component IDs must be unique non-empty strings.", call. = FALSE)
+    }
     index <- match(selection, ids)
-  } else {
+  } else if (is.numeric(selection) && !is.logical(selection)) {
+    if (!length(selection) || anyNA(selection) || any(!is.finite(selection)) ||
+        any(selection != as.integer(selection))) {
+      stop("`mv()` component positions must be finite integers.", call. = FALSE)
+    }
     index <- as.integer(selection)
+    if (anyDuplicated(index)) {
+      stop("`mv()` component positions must be unique.", call. = FALSE)
+    }
+  } else {
+    stop("`mv()` components must be stable component IDs or integer positions.",
+      call. = FALSE
+    )
   }
   if (!length(index) || anyNA(index) || any(index < 1L | index > length(ids))) {
     stop("`mv()` component selection is invalid for this block.", call. = FALSE)
@@ -120,63 +188,39 @@ mv <- function(block, components = NULL) {
   index
 }
 
-.entity_block <- function(frame, entity_name, block_name, observations) {
-  entity <- .frame_entities(frame)[[entity_name]]
-  if (is.null(entity) || is.null(entity$blocks[[block_name]])) {
-    stop("Unknown entity block: ", entity_name, ".", block_name, call. = FALSE)
-  }
-  entity_data <- entity$data
-  if (!is.data.frame(entity_data)) {
-    stop("Entity block requires an entity data frame.", call. = FALSE)
-  }
-  key <- entity$key
-  if (is.null(key)) {
-    preferred <- paste0(entity_name, "_id")
-    candidates <- intersect(names(observations), names(entity_data))
-    key <- if (preferred %in% candidates) preferred else candidates[1L]
-  }
-  if (length(key) != 1L || is.na(key) || !nzchar(key)) {
-    stop("Could not resolve the observation-to-entity key for ", entity_name, ".",
-      call. = FALSE
-    )
-  }
-  index <- match(observations[[key]], entity_data[[key]])
-  if (anyNA(index)) {
-    stop("Entity relation contains unresolved observation keys.", call. = FALSE)
-  }
-  list(block = entity$blocks[[block_name]], index = index)
-}
-
 .resolve_mv_block <- function(frame, call, observations, environment) {
-  target <- paste(deparse(call[[2L]], width.cutoff = 500L), collapse = "")
-  observation_blocks <- fmridataset::obs_blocks(frame)
+  parsed <- .parse_mv_call(call)
+  target <- parsed$target
+  observation_blocks <- fmridataset::obs_blocks(frame, resolve = TRUE)
   alignment <- "observation"
-  row_index <- seq_len(nrow(observations))
-
-  if (target %in% names(observation_blocks)) {
-    block <- observation_blocks[[target]]
+  if (!target %in% names(observation_blocks)) {
+    stop("Unknown multivariate block: ", target, call. = FALSE)
+  }
+  block <- observation_blocks[[target]]
+  block_data <- fmridataset::axis_block_data(block)
+  block_shape <- if (inherits(block_data, "array_source")) {
+    fmridataset::source_shape(block_data)
   } else {
-    entities <- names(.frame_entities(frame))
-    matching <- entities[startsWith(target, paste0(entities, "."))]
-    if (!length(matching)) {
-      stop("Unknown multivariate block: ", target, call. = FALSE)
-    }
-    entity_name <- matching[[which.max(nchar(matching))]]
-    block_name <- substring(target, nchar(entity_name) + 2L)
-    resolved <- .entity_block(frame, entity_name, block_name, observations)
-    block <- resolved$block
-    row_index <- resolved$index
-    alignment <- entity_name
+    dim(block_data)
+  }
+  if (length(block_shape) != 2L) {
+    stop("`mv()` requires a two-dimensional axis block.", call. = FALSE)
+  }
+  lift <- block$metadata$.fmridataset_lift
+  if (is.list(lift) && is.character(lift$entity) && length(lift$entity) == 1L) {
+    alignment <- lift$entity
   }
 
-  selection <- if (length(call) >= 3L) call[[3L]] else NULL
   component_index <- .select_block_components(
     block,
-    selection,
+    parsed$selection,
     environment
   )
   components <- fmridataset::block_components(block)[component_index, , drop = FALSE]
-  matrix <- .block_matrix(block)[row_index, component_index, drop = FALSE]
+  matrix <- .block_matrix(block, component_index)
+  if (nrow(matrix) != nrow(observations)) {
+    stop("Resolved multivariate block is not aligned to observations.", call. = FALSE)
+  }
   list(
     target = target,
     matrix = matrix,
@@ -203,7 +247,8 @@ mv <- function(block, components = NULL) {
 
 .human_term <- function(term, component_map) {
   out <- term
-  for (index in seq_len(nrow(component_map))) {
+  order <- order(nchar(component_map$column), decreasing = TRUE)
+  for (index in order) {
     label <- paste0(
       component_map$block[[index]],
       "[",
@@ -215,12 +260,37 @@ mv <- function(block, components = NULL) {
   out
 }
 
+.term_component_indices <- function(term, component_map) {
+  if (!nrow(component_map) || identical(term, "(Intercept)")) return(integer())
+  variables <- tryCatch(all.vars(str2lang(term)), error = function(error) character())
+  which(component_map$column %in% variables)
+}
+
+.validate_design_spec <- function(spec) {
+  required <- c(
+    "fixed", "random", "contrasts", "na_action", "schema_version"
+  )
+  if (!inherits(spec, "design_spec") ||
+      !identical(names(unclass(spec)), required) ||
+      !identical(spec$schema_version, 1L)) {
+    stop("`spec` must be a valid design_spec.", call. = FALSE)
+  }
+  design_spec(
+    fixed = spec$fixed,
+    random = spec$random,
+    contrasts = spec$contrasts,
+    na_action = spec$na_action
+  )
+  invisible(spec)
+}
+
 #' Compile a design specification against an fmri frame
 #'
 #' @param frame An `fmri_frame` or synchronized `fmri_view`.
 #' @param spec A `design_spec`.
 #' @return A `compiled_design` containing the dense fixed-effects model matrix,
-#'   component-aware term metadata, grouping data, and retained source spec.
+#'   exact component- and alignment-aware term metadata, grouping data, stable
+#'   observation IDs, and the retained source specification.
 #' @export
 compile_design <- function(frame, spec) {
   if (!inherits(frame, c("fmri_frame", "fmri_view"))) {
@@ -229,7 +299,32 @@ compile_design <- function(frame, spec) {
   if (!inherits(spec, "design_spec")) {
     stop("`spec` must be a design_spec.", call. = FALSE)
   }
-  data <- as.data.frame(fmridataset::observations(frame))
+  .validate_design_spec(spec)
+  if (!is.null(spec$random) &&
+      length(.collect_mv_calls(spec$random[[2L]]))) {
+    stop(
+      "`mv()` terms in random-effects formulas are not yet supported.",
+      call. = FALSE
+    )
+  }
+  .validate_mv_formula_context(spec$fixed[[2L]])
+  data <- as.data.frame(fmridataset::observations(frame, resolve = TRUE))
+  if (!is.null(spec$random)) {
+    missing_random <- setdiff(all.vars(spec$random), names(data))
+    if (length(missing_random)) {
+      stop(
+        "Random-effects formula variables are missing: ",
+        paste(missing_random, collapse = ", "),
+        call. = FALSE
+      )
+    }
+  }
+  group_vars <- .random_group_vars(spec$random)
+  if (!is.null(spec$random) && !length(group_vars)) {
+    stop("`random` must contain at least one `|` or `||` grouping term.",
+      call. = FALSE
+    )
+  }
   calls <- .collect_mv_calls(spec$fixed[[2L]])
   keys <- vapply(calls, .mv_call_key, character(1))
   calls <- calls[!duplicated(keys)]
@@ -291,14 +386,11 @@ compile_design <- function(frame, spec) {
 
   term_table <- lapply(seq_len(ncol(matrix)), function(column_index) {
     model_column <- colnames(matrix)[[column_index]]
-    matches <- which(vapply(
-      component_map$column,
-      function(token) grepl(token, model_column, fixed = TRUE),
-      logical(1)
-    ))
+    source_term <- term_labels[[assigned[[column_index]]]]
+    matches <- .term_component_indices(source_term, component_map)
     data.frame(
       model_column = model_column,
-      term = .human_term(term_labels[[assigned[[column_index]]]], component_map),
+      term = .human_term(source_term, component_map),
       source_type = if (length(matches)) "axis_block" else "scalar",
       source_block = if (length(matches)) {
         paste(unique(component_map$block[matches]), collapse = ";")
@@ -310,19 +402,16 @@ compile_design <- function(frame, spec) {
       } else {
         NA_character_
       },
+      alignment = if (length(matches)) {
+        paste(unique(component_map$alignment[matches]), collapse = ";")
+      } else {
+        NA_character_
+      },
       stringsAsFactors = FALSE
     )
   })
   term_table <- do.call(rbind, term_table)
 
-  group_vars <- .random_group_vars(spec$random)
-  missing_groups <- setdiff(group_vars, names(data))
-  if (length(missing_groups)) {
-    stop("Random grouping variables are missing: ",
-      paste(missing_groups, collapse = ", "),
-      call. = FALSE
-    )
-  }
   grouping <- data[group_vars]
   retained_rows <- match(rownames(model_frame), rownames(data))
   if (anyNA(retained_rows)) {

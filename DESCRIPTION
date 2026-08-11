@@ -31,7 +31,9 @@ Imports:
     utils
 RoxygenNote: 7.3.3
 Suggests:
+    albersdown,
     covr,
+    ggplot2,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown
@@ -40,6 +42,7 @@ URL: https://bbuchsbaum.github.io/multidesign/,
     https://github.com/bbuchsbaum/multidesign
 BugReports: https://github.com/bbuchsbaum/multidesign/issues
 Remotes:
+    bbuchsbaum/albersdown,
     bbuchsbaum/fmridataset
 VignetteBuilder: knitr
 Config/Needs/website: albersdown

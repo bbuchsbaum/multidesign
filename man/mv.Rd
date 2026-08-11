@@ -17,5 +17,7 @@ This function always errors when evaluated directly.
 }
 \description{
 `mv()` marks a named observation- or entity-aligned `axis_block` for
-expansion by [compile_design()]. It is meaningful only inside a formula.
+expansion by [compile_design()]. Blocks are resolved through the frame's
+relation registry and must be two dimensional. It is meaningful only as a
+term in fixed-effects formula algebra.
 }

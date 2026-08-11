@@ -29,3 +29,8 @@ A design specification preserves formulas and their environments. It does
 not freeze a model matrix: coding, missing-value handling, and multivariate
 block expansion occur when the specification is compiled against a frame.
 }
+\details{
+Fixed formulas are compiled against relation-resolved observation
+  metadata. Random formulas must contain at least one grouping term; `mv()`
+  is currently restricted to fixed-effects formula algebra.
+}

@@ -13,7 +13,8 @@ compile_design(frame, spec)
 }
 \value{
 A `compiled_design` containing the dense fixed-effects model matrix,
-  component-aware term metadata, grouping data, and retained source spec.
+  exact component- and alignment-aware term metadata, grouping data, stable
+  observation IDs, and the retained source specification.
 }
 \description{
 Compile a design specification against an fmri frame
