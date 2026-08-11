@@ -10,3 +10,8 @@
   `mv()` syntax and component selectors are validated strictly, interaction
   attribution uses exact generated variables, and random formulas fail early
   on unsupported blocks or missing variables.
+* Added reusable compiled-design blueprints. `apply_design()` now preserves
+  training factor levels, explicit contrast matrices, formula transformation
+  parameters, model columns, and stable `mv()` component IDs. `design_rows()`
+  records fixed, random, and multivariate missingness under explicit fail or
+  omit policies.

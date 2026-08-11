@@ -4,6 +4,8 @@
 \alias{model_matrix}
 \alias{term_data}
 \alias{grouping_data}
+\alias{design_blueprint}
+\alias{design_rows}
 \title{Access compiled design products}
 \usage{
 model_matrix(x)
@@ -11,6 +13,10 @@ model_matrix(x)
 term_data(x)
 
 grouping_data(x)
+
+design_blueprint(x)
+
+design_rows(x)
 }
 \arguments{
 \item{x}{A `compiled_design`.}

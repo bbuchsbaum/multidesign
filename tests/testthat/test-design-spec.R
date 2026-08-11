@@ -351,3 +351,123 @@ test_that("design compilation is equivariant to row order and feature selection"
   )
   expect_identical(term_data(reordered), term_data(reference))
 })
+
+test_that("compiled blueprints freeze factor coding and formula transformations", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(
+    frame,
+    design_spec(
+      ~ Fac1 + scale(age),
+      contrasts = list(Fac1 = "contr.sum")
+    )
+  )
+  selected <- c(8L, 1L, 6L, 3L)
+  old_options <- options(contrasts = c("contr.helmert", "contr.poly"))
+  on.exit(options(old_options), add = TRUE)
+  applied <- apply_design(compiled, frame[selected, ])
+
+  expect_equal(
+    unname(model_matrix(applied)),
+    unname(model_matrix(compiled)[selected, , drop = FALSE]),
+    tolerance = 0,
+    ignore_attr = TRUE
+  )
+  expect_identical(colnames(model_matrix(applied)), colnames(model_matrix(compiled)))
+  expect_false(isTRUE(all.equal(
+    unname(model_matrix(compile_design(
+      frame[selected, ],
+      design_spec(~ Fac1 + scale(age), contrasts = list(Fac1 = "contr.sum"))
+    ))[, "scale(age)"]),
+    unname(model_matrix(applied)[, "scale(age)"])
+  )))
+
+  blueprint <- design_blueprint(compiled)
+  expect_identical(rownames(blueprint$contrasts$Fac1), levels(frame$observations$data$Fac1))
+  expect_true(is.matrix(blueprint$contrasts$Fac1))
+  expect_identical(blueprint$xlevels$Fac1, levels(frame$observations$data$Fac1))
+  expect_match(paste(deparse(attr(blueprint$terms, "predvars")), collapse = ""), "center")
+  expect_gt(length(serialize(blueprint, NULL)), 0L)
+})
+
+test_that("blueprint application rejects unseen factor levels", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(frame, design_spec(~ Fac1 + age))
+  changed <- frame
+  changed$observations$data$Fac1 <- factor(
+    c(as.character(changed$observations$data$Fac1[-1L]), "C"),
+    levels = c("A", "B", "C")
+  )
+
+  expect_error(apply_design(compiled, changed), "new level|new factor")
+})
+
+test_that("blueprints select mv components by stable ID rather than position", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(
+    frame,
+    design_spec(~ 0 + mv(motion, c("rotation", "translation")))
+  )
+  changed <- frame
+  block <- fmridataset::obs_blocks(changed)$motion
+  changed$observations$blocks$motion <- fmridataset::axis_block(
+    fmridataset::axis_block_data(block)[, c(2L, 1L), drop = FALSE],
+    components = fmridataset::block_components(block)[c(2L, 1L), , drop = FALSE],
+    role = block$role,
+    units = block$units,
+    metadata = block$metadata
+  )
+  applied <- apply_design(compiled, changed)
+
+  expect_equal(model_matrix(applied), model_matrix(compiled), tolerance = 0)
+  changed$observations$blocks$motion <- fmridataset::axis_block(
+    fmridataset::axis_block_data(block)[, 1L, drop = FALSE],
+    components = fmridataset::block_components(block)[1L, , drop = FALSE]
+  )
+  expect_error(apply_design(compiled, changed), "rotation")
+})
+
+test_that("missing policy covers fixed random and mv inputs with an audit table", {
+  frame <- .design_frame_fixture()
+  frame$observations$data$age[[3L]] <- NA_real_
+  frame$observations$data$random_cov <- seq_len(nrow(frame))
+  frame$observations$data$random_cov[[4L]] <- NA_integer_
+  frame$observations$blocks$motion$data[2L, 1L] <- NA_real_
+  fixed <- ~ age + mv(motion)
+  random <- ~ 1 + random_cov | subject_id
+
+  expect_error(
+    compile_design(frame, design_spec(fixed, random, na_action = "fail")),
+    "obs-2.*obs-3.*obs-4|3 observation"
+  )
+  compiled <- compile_design(
+    frame,
+    design_spec(fixed, random, na_action = "omit")
+  )
+  rows <- design_rows(compiled)
+
+  expect_identical(
+    compiled$observation_ids,
+    fmridataset::observation_ids(frame)[-c(2L, 3L, 4L)]
+  )
+  expect_identical(rows$.obs_id, fmridataset::observation_ids(frame))
+  expect_identical(which(rows$fixed_missing), c(2L, 3L))
+  expect_identical(which(rows$random_missing), 4L)
+  expect_identical(which(!rows$retained), c(2L, 3L, 4L))
+  expect_false(anyNA(grouping_data(compiled)))
+})
+
+test_that("contrast specifications reject ambiguous or unused declarations", {
+  frame <- .design_frame_fixture()
+  expect_error(
+    design_spec(~ Fac1, contrasts = structure(list("contr.sum", "contr.poly"), names = c("Fac1", "Fac1"))),
+    "unique"
+  )
+  expect_error(
+    design_spec(~ Fac1, contrasts = list("contr.sum")),
+    "non-empty"
+  )
+  expect_error(
+    compile_design(frame, design_spec(~ age, contrasts = list(Fac1 = "contr.sum"))),
+    "not a categorical predictor|unused"
+  )
+})
