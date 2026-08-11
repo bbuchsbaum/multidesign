@@ -64,6 +64,7 @@ together:
 ### Construction
 
 ``` r
+
 # Data matrix: 30 observations x 10 variables
 X <- matrix(rnorm(30 * 10), 30, 10)
 
@@ -118,6 +119,7 @@ md
 ### Examples
 
 ``` r
+
 # Extract components
 dim(xdata(md))
 #> [1] 30 10
@@ -194,6 +196,7 @@ the projector used for the transformation.
 ### Construction
 
 ``` r
+
 # Note: requires multivarious package for full functionality
 # Basic structure shown here
 md_small <- multidesign(
@@ -239,6 +242,7 @@ multi-subject, multi-session, or multi-modal experiments.
 ### Construction
 
 ``` r
+
 # Create individual subject data
 subj1 <- multidesign(
   matrix(rnorm(20 * 5), 20, 5),
@@ -299,22 +303,23 @@ hd
 
 ### Key methods
 
-| Method                             | Description                                   |
-|------------------------------------|-----------------------------------------------|
-| `xdata(x)` / `xdata(x, block=i)`   | Extract data (all blocks or specific block)   |
+| Method | Description |
+|----|----|
+| `xdata(x)` / `xdata(x, block=i)` | Extract data (all blocks or specific block) |
 | `design(x)` / `design(x, block=i)` | Extract design (all blocks or specific block) |
-| `column_design(x)`                 | Extract column design                         |
-| `subset(x, expr)`                  | Filter all blocks by expression               |
-| `select_variables(x, ...)`         | Filter columns in all blocks                  |
-| `fold_over(x)`                     | Leave-one-block-out folds                     |
-| `fold_over(x, var)`                | Within-block folds by variable                |
-| `cv_rows(x, rows)`                 | Create synchronized row-index folds           |
-| `as_multidesign(x)`                | Collapse to single multidesign                |
-| `block_indices(x, i)`              | Get indices for block i                       |
+| `column_design(x)` | Extract column design |
+| `subset(x, expr)` | Filter all blocks by expression |
+| `select_variables(x, ...)` | Filter columns in all blocks |
+| `fold_over(x)` | Leave-one-block-out folds |
+| `fold_over(x, var)` | Within-block folds by variable |
+| `cv_rows(x, rows)` | Create synchronized row-index folds |
+| `as_multidesign(x)` | Collapse to single multidesign |
+| `block_indices(x, i)` | Get indices for block i |
 
 ### Examples
 
 ``` r
+
 # Access individual blocks
 length(hd)
 #> [1] 3
@@ -368,6 +373,7 @@ table(design(md_collapsed)$subject)
 ### Alternative construction: from data frame
 
 ``` r
+
 # If your data is in a wide-format data frame
 wide_df <- tibble(
   subject = rep(1:2, each = 5),
@@ -434,6 +440,7 @@ too large to hold entirely in memory.
 ### Construction
 
 ``` r
+
 # From a matrix (each row becomes a lazy observation)
 X <- matrix(1:40, 10, 4)
 design_info <- tibble(
@@ -486,6 +493,7 @@ mf_list <- multiframe(obs_list, tibble(condition = c("X", "Y", "Z")))
 ### Examples
 
 ``` r
+
 # Design without internal columns
 design(mf)
 #> # A tibble: 10 × 2
@@ -553,6 +561,7 @@ with the combined matrix directly.
 ### Construction
 
 ``` r
+
 # Column-stacked: same number of rows, different columns
 A1 <- matrix(1:12, 4, 3)
 A2 <- matrix(13:20, 4, 2)
@@ -602,6 +611,7 @@ mb_row
 ### Examples
 
 ``` r
+
 # Check orientation
 is_cstacked(mb_col)
 #> [1] TRUE
@@ -647,6 +657,7 @@ also carry a reserved `.orig_index` design column, and
 ### Examples
 
 ``` r
+
 md <- multidesign(
   matrix(rnorm(40), 10, 4),
   tibble(group = rep(c("A", "B"), 5))
@@ -724,6 +735,7 @@ performance.
 ### Examples
 
 ``` r
+
 # Run cross-validation
 md <- multidesign(
   matrix(rnorm(60), 15, 4),
@@ -782,6 +794,7 @@ cv_res$scores
 ### bind_multidesign: Combine multiple multidesign objects
 
 ``` r
+
 md1 <- multidesign(matrix(1:10, 5, 2), tibble(g = rep("A", 5)))
 md2 <- multidesign(matrix(11:20, 5, 2), tibble(g = rep("B", 5)))
 
@@ -813,6 +826,7 @@ nrow(xdata(combined2))
 ### as_multidesign: Collapse hyperdesign
 
 ``` r
+
 hd <- hyperdesign(
   list(
     multidesign(matrix(1:10, 5, 2), tibble(cond = c("X", "X", "Y", "Y", "Y"))),
@@ -843,29 +857,30 @@ design(md_flat)
 
 ## Method availability summary
 
-| Method                                                                                         | multidesign | hyperdesign | multiframe | multiblock |
-|------------------------------------------------------------------------------------------------|:-----------:|:-----------:|:----------:|:----------:|
-| [`xdata()`](https://bbuchsbaum.github.io/multidesign/reference/xdata.md)                       |      ✓      |      ✓      |     ✓      |     \-     |
-| [`design()`](https://bbuchsbaum.github.io/multidesign/reference/design.md)                     |      ✓      |      ✓      |     ✓      |     \-     |
-| [`column_design()`](https://bbuchsbaum.github.io/multidesign/reference/column_design.md)       |      ✓      |      ✓      |     \-     |     \-     |
-| [`subset()`](https://rdrr.io/r/base/subset.html)                                               |      ✓      |      ✓      |     ✓      |     \-     |
-| [`split()`](https://rdrr.io/r/base/split.html)                                                 |      ✓      |     \-      |     ✓      |     \-     |
-| [`select_variables()`](https://bbuchsbaum.github.io/multidesign/reference/select_variables.md) |      ✓      |      ✓      |     \-     |     \-     |
-| [`summarize_by()`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.md)         |      ✓      |     \-      |     ✓      |     \-     |
-| [`fold_over()`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.md)               |      ✓      |      ✓      |     ✓      |     \-     |
-| [`cv_rows()`](https://bbuchsbaum.github.io/multidesign/reference/cv_rows.md)                   |      ✓      |      ✓      |     ✓      |     \-     |
-| [`split_indices()`](https://bbuchsbaum.github.io/multidesign/reference/split_indices.md)       |      ✓      |     \-      |     ✓      |     \-     |
-| [`block_indices()`](https://bbuchsbaum.github.io/multidesign/reference/block_indices.md)       |     \-      |      ✓      |     \-     |     ✓      |
-| [`is_cstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_cstacked.md)           |     \-      |     \-      |     \-     |     ✓      |
-| [`is_rstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_rstacked.md)           |     \-      |     \-      |     \-     |     ✓      |
+| Method | multidesign | hyperdesign | multiframe | multiblock |
+|----|:--:|:--:|:--:|:--:|
+| [`xdata()`](https://bbuchsbaum.github.io/multidesign/reference/xdata.md) | ✓ | ✓ | ✓ | \- |
+| [`design()`](https://bbuchsbaum.github.io/multidesign/reference/design.md) | ✓ | ✓ | ✓ | \- |
+| [`column_design()`](https://bbuchsbaum.github.io/multidesign/reference/column_design.md) | ✓ | ✓ | \- | \- |
+| [`subset()`](https://rdrr.io/r/base/subset.html) | ✓ | ✓ | ✓ | \- |
+| [`split()`](https://rdrr.io/r/base/split.html) | ✓ | \- | ✓ | \- |
+| [`select_variables()`](https://bbuchsbaum.github.io/multidesign/reference/select_variables.md) | ✓ | ✓ | \- | \- |
+| [`summarize_by()`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.md) | ✓ | \- | ✓ | \- |
+| [`fold_over()`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.md) | ✓ | ✓ | ✓ | \- |
+| [`cv_rows()`](https://bbuchsbaum.github.io/multidesign/reference/cv_rows.md) | ✓ | ✓ | ✓ | \- |
+| [`split_indices()`](https://bbuchsbaum.github.io/multidesign/reference/split_indices.md) | ✓ | \- | ✓ | \- |
+| [`block_indices()`](https://bbuchsbaum.github.io/multidesign/reference/block_indices.md) | \- | ✓ | \- | ✓ |
+| [`is_cstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_cstacked.md) | \- | \- | \- | ✓ |
+| [`is_rstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_rstacked.md) | \- | \- | \- | ✓ |
 
 ------------------------------------------------------------------------
 
 ## Session info
 
 ``` r
+
 sessionInfo()
-#> R version 4.5.3 (2026-03-11)
+#> R version 4.6.1 (2026-06-24)
 #> Platform: x86_64-pc-linux-gnu
 #> Running under: Ubuntu 24.04.4 LTS
 #> 
@@ -886,32 +901,21 @@ sessionInfo()
 #> [1] stats     graphics  grDevices utils     datasets  methods   base     
 #> 
 #> other attached packages:
-#> [1] dplyr_1.2.0       tibble_3.3.1      multidesign_0.1.0
+#> [1] dplyr_1.2.1            tibble_3.3.1           multidesign_0.1.0.9000
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] gtable_0.3.6         shape_1.4.6.1        xfun_0.57           
-#>  [4] bslib_0.10.0         ggplot2_4.0.2        ggrepel_0.9.8       
-#>  [7] lattice_0.22-9       vctrs_0.7.2          tools_4.5.3         
-#> [10] generics_0.1.4       parallel_4.5.3       pkgconfig_2.0.3     
-#> [13] multivarious_0.3.1   Matrix_1.7-4         RColorBrewer_1.1-3  
-#> [16] S7_0.2.1             desc_1.4.3           assertthat_0.2.1    
-#> [19] lifecycle_1.0.5      compiler_4.5.3       farver_2.1.2        
-#> [22] GPArotation_2025.3-1 textshaping_1.0.5    codetools_0.2-20    
-#> [25] htmltools_0.5.9      sass_0.4.10          yaml_2.3.12         
-#> [28] deflist_0.2.0        glmnet_4.1-10        pillar_1.11.1       
-#> [31] pkgdown_2.2.0        crayon_1.5.3         jquerylib_0.1.4     
-#> [34] tidyr_1.3.2          cachem_1.1.0         iterators_1.0.14    
-#> [37] foreach_1.5.2        parallelly_1.46.1    RSpectra_0.16-2     
-#> [40] pls_2.9-0            svd_0.5.8            tidyselect_1.2.1    
-#> [43] rsvd_1.0.5           digest_0.6.39        future_1.70.0       
-#> [46] purrr_1.2.1          listenv_0.10.1       splines_4.5.3       
-#> [49] fastmap_1.2.0        grid_4.5.3           cli_3.6.5           
-#> [52] magrittr_2.0.4       utf8_1.2.6           survival_3.8-6      
-#> [55] future.apply_1.20.2  withr_3.0.2          corpcor_1.6.10      
-#> [58] scales_1.4.0         rmarkdown_2.31       albersdown_1.0.0    
-#> [61] globals_0.19.1       ragg_1.5.2           chk_0.10.0          
-#> [64] memoise_2.0.1        evaluate_1.0.5       knitr_1.51          
-#> [67] irlba_2.3.7          rlang_1.1.7          Rcpp_1.1.1          
-#> [70] glue_1.8.0           geigen_2.3           jsonlite_2.0.0      
-#> [73] R6_2.6.1             systemfonts_1.3.2    fs_2.0.1
+#>  [1] Matrix_1.7-5       gtable_0.3.6       jsonlite_2.0.0     crayon_1.5.3      
+#>  [5] compiler_4.6.1     tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2       
+#>  [9] geigen_2.4         jquerylib_0.1.4    systemfonts_1.3.2  scales_1.4.0      
+#> [13] textshaping_1.0.5  yaml_2.3.12        fastmap_1.2.0      lattice_0.22-9    
+#> [17] ggplot2_4.0.3      R6_2.6.1           generics_0.1.4     knitr_1.51        
+#> [21] chk_0.10.0         desc_1.4.3         bslib_0.12.0       pillar_1.11.1     
+#> [25] RColorBrewer_1.1-3 multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
+#> [29] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
+#> [33] S7_0.2.2           otel_0.2.0         memoise_2.0.1      cli_3.6.6         
+#> [37] withr_3.0.3        pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39     
+#> [41] grid_4.6.1         lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    
+#> [45] glue_1.8.1         farver_2.1.2       ragg_1.5.2         deflist_0.2.0     
+#> [49] purrr_1.2.2        rmarkdown_2.31     albersdown_2.0.0   tools_4.6.1       
+#> [53] pkgconfig_2.0.3    htmltools_0.5.9
 ```

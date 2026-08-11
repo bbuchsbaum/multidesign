@@ -1,6 +1,7 @@
 # Getting Started with multidesign
 
 ``` r
+
 if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
 library(multidesign)
 library(tibble)
@@ -48,12 +49,12 @@ structures that:
 
 ## Quick reference: When to use each class
 
-| Class         | Use when…                                                                                             |
-|---------------|-------------------------------------------------------------------------------------------------------|
-| `multidesign` | You have a single data matrix with row-wise design information and optional column metadata           |
+| Class | Use when… |
+|----|----|
+| `multidesign` | You have a single data matrix with row-wise design information and optional column metadata |
 | `hyperdesign` | You have multiple related matrices (e.g., different subjects or sessions) that share design structure |
-| `multiframe`  | Your data is expensive to load and you want lazy evaluation (load on demand)                          |
-| `multiblock`  | You have stacked matrices sharing a row or column dimension (low-level operations)                    |
+| `multiframe` | Your data is expensive to load and you want lazy evaluation (load on demand) |
+| `multiblock` | You have stacked matrices sharing a row or column dimension (low-level operations) |
 
 Most users will start with `multidesign` and move to `hyperdesign` when
 working with multi-subject data.
@@ -70,6 +71,7 @@ Imagine a simple experiment: 2 conditions (face vs. house), 10 subjects,
 regions.
 
 ``` r
+
 # Simulate data for one subject
 n_trials <- 40
 n_regions <- 50
@@ -99,6 +101,7 @@ Combine your data matrix, design information, and column metadata into a
 single object:
 
 ``` r
+
 mds <- multidesign(X, design_df, column_info)
 mds
 #> 
@@ -125,6 +128,7 @@ The `multidesign` object keeps everything synchronized. You can extract
 components with accessor functions:
 
 ``` r
+
 # Get the data matrix
 head(xdata(mds)[, 1:5])
 #>            [,1]       [,2]        [,3]         [,4]       [,5]
@@ -165,6 +169,7 @@ head(column_design(mds))
 Filter observations by design variables:
 
 ``` r
+
 # Keep only face trials
 mds_face <- subset(mds, condition == "face")
 mds_face
@@ -196,6 +201,7 @@ nrow(xdata(mds_run1))
 Select variables (columns) by their metadata:
 
 ``` r
+
 # Keep only visual network regions
 mds_visual <- select_variables(mds, network == "visual")
 ncol(xdata(mds_visual))
@@ -226,6 +232,7 @@ ncol(xdata(mds_left_visual))
 Compute summary statistics grouped by design variables:
 
 ``` r
+
 # Mean activity per condition
 mds_means <- summarize_by(mds, condition)
 mds_means
@@ -262,6 +269,7 @@ design(mds_means)
 Split into separate multidesign objects:
 
 ``` r
+
 # Split by condition
 by_condition <- split(mds, condition)
 length(by_condition)
@@ -295,6 +303,7 @@ by_condition$face
 Create cross-validation folds that respect your experimental design:
 
 ``` r
+
 # Leave-one-run-out cross-validation
 folds <- fold_over(mds, run)
 folds
@@ -334,6 +343,7 @@ If downstream code needs stable source-row identities, ask fold
 construction to carry them through:
 
 ``` r
+
 folds_with_ids <- fold_over(mds, run, preserve_row_ids = TRUE)
 folds_with_ids[[1]]$assessment$design$.orig_index
 #>  [1]  1  2  3  4  5  6  7  8  9 10
@@ -346,6 +356,7 @@ Use
 to execute a complete CV workflow:
 
 ``` r
+
 # Define a simple "model": compute condition means on training data
 fit_fn <- function(analysis) {
  means_by_cond <- summarize_by(analysis, condition)
@@ -386,6 +397,7 @@ cv_result
 Examine detailed results:
 
 ``` r
+
 # Get summary statistics
 summary(cv_result)
 #> # A tibble: 3 × 6
@@ -413,6 +425,7 @@ manages multiple `multidesign` objects that share common design
 structure.
 
 ``` r
+
 # Create data for 3 subjects
 subjects <- lapply(1:3, function(subj) {
  X_subj <- matrix(rnorm(n_trials * n_regions), n_trials, n_regions)
@@ -470,6 +483,7 @@ hd
 ### Leave-one-subject-out cross-validation
 
 ``` r
+
 # Without specifying variables, fold_over creates leave-one-block-out folds
 loso_folds <- fold_over(hd)
 length(loso_folds)
@@ -503,6 +517,7 @@ fold1$assessment
 ### Within-subject cross-validation
 
 ``` r
+
 # Fold by run within each subject
 run_folds <- fold_over(hd, run)
 length(run_folds)
@@ -516,6 +531,7 @@ When you already know the held-out rows, use
 to build a `foldlist` directly:
 
 ``` r
+
 row_folds <- cv_rows(
   hd,
   rows = list(
@@ -558,6 +574,7 @@ Use `preserve_row_ids = TRUE` here as well if external correspondence
 tables or annotations are keyed by original rows:
 
 ``` r
+
 row_folds_with_ids <- cv_rows(
   hd,
   rows = list(list(subj1 = 1:2, subj2 = 1:2)),
@@ -579,6 +596,7 @@ row_folds_with_ids[[1]]$held_out$row_ids
 If you need to analyze all subjects together:
 
 ``` r
+
 # Collapse hyperdesign to one multidesign
 mds_all <- as_multidesign(hd, .id = "subject")
 mds_all
@@ -623,8 +641,9 @@ table(design(mds_all)$subject)
 ## Session info
 
 ``` r
+
 sessionInfo()
-#> R version 4.5.3 (2026-03-11)
+#> R version 4.6.1 (2026-06-24)
 #> Platform: x86_64-pc-linux-gnu
 #> Running under: Ubuntu 24.04.4 LTS
 #> 
@@ -645,32 +664,21 @@ sessionInfo()
 #> [1] stats     graphics  grDevices utils     datasets  methods   base     
 #> 
 #> other attached packages:
-#> [1] dplyr_1.2.0       tibble_3.3.1      multidesign_0.1.0
+#> [1] dplyr_1.2.1            tibble_3.3.1           multidesign_0.1.0.9000
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] gtable_0.3.6         shape_1.4.6.1        xfun_0.57           
-#>  [4] bslib_0.10.0         ggplot2_4.0.2        ggrepel_0.9.8       
-#>  [7] lattice_0.22-9       vctrs_0.7.2          tools_4.5.3         
-#> [10] generics_0.1.4       parallel_4.5.3       pkgconfig_2.0.3     
-#> [13] multivarious_0.3.1   Matrix_1.7-4         RColorBrewer_1.1-3  
-#> [16] S7_0.2.1             desc_1.4.3           assertthat_0.2.1    
-#> [19] lifecycle_1.0.5      compiler_4.5.3       farver_2.1.2        
-#> [22] GPArotation_2025.3-1 textshaping_1.0.5    codetools_0.2-20    
-#> [25] htmltools_0.5.9      sass_0.4.10          yaml_2.3.12         
-#> [28] deflist_0.2.0        glmnet_4.1-10        pillar_1.11.1       
-#> [31] pkgdown_2.2.0        crayon_1.5.3         jquerylib_0.1.4     
-#> [34] tidyr_1.3.2          cachem_1.1.0         iterators_1.0.14    
-#> [37] foreach_1.5.2        parallelly_1.46.1    RSpectra_0.16-2     
-#> [40] pls_2.9-0            svd_0.5.8            tidyselect_1.2.1    
-#> [43] rsvd_1.0.5           digest_0.6.39        future_1.70.0       
-#> [46] purrr_1.2.1          listenv_0.10.1       splines_4.5.3       
-#> [49] fastmap_1.2.0        grid_4.5.3           cli_3.6.5           
-#> [52] magrittr_2.0.4       utf8_1.2.6           survival_3.8-6      
-#> [55] future.apply_1.20.2  withr_3.0.2          corpcor_1.6.10      
-#> [58] scales_1.4.0         rmarkdown_2.31       albersdown_1.0.0    
-#> [61] globals_0.19.1       ragg_1.5.2           chk_0.10.0          
-#> [64] memoise_2.0.1        evaluate_1.0.5       knitr_1.51          
-#> [67] irlba_2.3.7          rlang_1.1.7          Rcpp_1.1.1          
-#> [70] glue_1.8.0           geigen_2.3           jsonlite_2.0.0      
-#> [73] R6_2.6.1             systemfonts_1.3.2    fs_2.0.1
+#>  [1] Matrix_1.7-5       gtable_0.3.6       jsonlite_2.0.0     crayon_1.5.3      
+#>  [5] compiler_4.6.1     tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2       
+#>  [9] geigen_2.4         jquerylib_0.1.4    systemfonts_1.3.2  scales_1.4.0      
+#> [13] textshaping_1.0.5  yaml_2.3.12        fastmap_1.2.0      lattice_0.22-9    
+#> [17] ggplot2_4.0.3      R6_2.6.1           generics_0.1.4     knitr_1.51        
+#> [21] chk_0.10.0         desc_1.4.3         bslib_0.12.0       pillar_1.11.1     
+#> [25] RColorBrewer_1.1-3 multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
+#> [29] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
+#> [33] S7_0.2.2           otel_0.2.0         memoise_2.0.1      cli_3.6.6         
+#> [37] withr_3.0.3        pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39     
+#> [41] grid_4.6.1         lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    
+#> [45] glue_1.8.1         farver_2.1.2       ragg_1.5.2         deflist_0.2.0     
+#> [49] purrr_1.2.2        rmarkdown_2.31     albersdown_2.0.0   tools_4.6.1       
+#> [53] pkgconfig_2.0.3    htmltools_0.5.9
 ```

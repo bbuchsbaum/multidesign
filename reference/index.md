@@ -12,6 +12,8 @@
   : Extract Block Indices from Multiblock Object
 - [`column_design()`](https://bbuchsbaum.github.io/multidesign/reference/column_design.md)
   : Extract Column Design Information
+- [`compile_design()`](https://bbuchsbaum.github.io/multidesign/reference/compile_design.md)
+  : Compile a design specification against an fmri frame
 - [`cross_validate()`](https://bbuchsbaum.github.io/multidesign/reference/cross_validate.md)
   : Execute Cross-Validation Over Folds
 - [`cv_rows()`](https://bbuchsbaum.github.io/multidesign/reference/cv_rows.md)
@@ -20,6 +22,8 @@
   : Extract Design Information
 - [`design(`*`<hyperdesign>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/design.hyperdesign.md)
   : Extract Design Information from Hyperdesign
+- [`design_spec()`](https://bbuchsbaum.github.io/multidesign/reference/design_spec.md)
+  : Define a frame-native model design
 - [`df_to_hyperdesign()`](https://bbuchsbaum.github.io/multidesign/reference/df_to_hyperdesign.md)
   : Convert a Data Frame to a Hyperdesign Object
 - [`fold_over()`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.md)
@@ -38,6 +42,10 @@
   : Test if Multiblock Object is Column Stacked
 - [`is_rstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_rstacked.md)
   : Test if Multiblock Object is Row Stacked
+- [`model_matrix()`](https://bbuchsbaum.github.io/multidesign/reference/model_matrix.md)
+  [`term_data()`](https://bbuchsbaum.github.io/multidesign/reference/model_matrix.md)
+  [`grouping_data()`](https://bbuchsbaum.github.io/multidesign/reference/model_matrix.md)
+  : Access compiled design products
 - [`multiblock()`](https://bbuchsbaum.github.io/multidesign/reference/multiblock.md)
   : Create a Multiblock Object
 - [`multiblock(`*`<list>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/multiblock.list.md)
@@ -50,6 +58,8 @@
   : Create a Multiframe from a List
 - [`multiframe(`*`<matrix>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/multiframe.matrix.md)
   : Create a Multiframe from a Matrix
+- [`mv()`](https://bbuchsbaum.github.io/multidesign/reference/mv.md) :
+  Multivariate block formula special
 - [`obs_group()`](https://bbuchsbaum.github.io/multidesign/reference/obs_group.md)
   : Create a Group of Observations from Matrix or List Data
 - [`observation()`](https://bbuchsbaum.github.io/multidesign/reference/observation.md)

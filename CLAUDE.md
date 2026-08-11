@@ -129,6 +129,7 @@ experimental design scenarios:
 ### Common Development Commands
 
 ``` r
+
 # Install and load development tools
 library(devtools)
 
@@ -193,6 +194,7 @@ devtools::install()
 ## Usage Examples
 
 ``` r
+
 library(multidesign)
 library(tibble)
 

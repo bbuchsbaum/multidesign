@@ -37,18 +37,19 @@ science, psychophysics, and other settings where you need to manage:
 GitHub:
 
 ``` r
+
 install.packages("remotes")
 remotes::install_github("bbuchsbaum/multidesign")
 ```
 
 ## Core objects
 
-| Class         | Use it when…                                                                            |
-|---------------|-----------------------------------------------------------------------------------------|
+| Class | Use it when… |
+|----|----|
 | `multidesign` | You have one data matrix plus row-wise design information and optional column metadata. |
-| `hyperdesign` | You have multiple related `multidesign` objects, such as one per subject or session.    |
-| `multiframe`  | Your observations are expensive to materialize and you want lazy evaluation.            |
-| `multiblock`  | You need lower-level stacked matrix operations without the full design abstraction.     |
+| `hyperdesign` | You have multiple related `multidesign` objects, such as one per subject or session. |
+| `multiframe` | Your observations are expensive to materialize and you want lazy evaluation. |
+| `multiblock` | You need lower-level stacked matrix operations without the full design abstraction. |
 
 Most workflows start with `multidesign` and move to `hyperdesign` when
 the data naturally breaks into subject-, session-, or modality-level
@@ -57,6 +58,7 @@ blocks.
 ## Example
 
 ``` r
+
 library(multidesign)
 
 set.seed(42)
