@@ -15,3 +15,9 @@
   parameters, model columns, and stable `mv()` component IDs. `design_rows()`
   records fixed, random, and multivariate missingness under explicit fail or
   omit policies.
+* Expanded compiled-design metadata into normalized, machine-readable tables.
+  `term_data()` gives stable fixed-term grouping, `component_data()` records
+  every model-column-to-block-component link, and `grouping_term_data()` plus
+  `random_effect_data()` describe multiple `|` and `||` terms without requiring
+  downstream formula parsing. Random-effect transformations now participate in
+  the compiled missing-value policy.

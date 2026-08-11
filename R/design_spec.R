@@ -265,16 +265,16 @@ mv <- function(block, components = NULL) {
   if (is.null(formula)) {
     return(character())
   }
-  find_groups <- function(x) {
-    if (!is.call(x)) {
-      return(character())
-    }
-    if (identical(x[[1L]], as.name("|")) || identical(x[[1L]], as.name("||"))) {
-      return(all.vars(x[[3L]]))
-    }
-    unique(unlist(lapply(as.list(x)[-1L], find_groups), use.names = FALSE))
+  calls <- .collect_random_calls(formula[[2L]])
+  unique(unlist(lapply(calls, function(x) all.vars(x[[3L]])), use.names = FALSE))
+}
+
+.collect_random_calls <- function(x) {
+  if (!is.call(x)) return(list())
+  if (identical(x[[1L]], as.name("|")) || identical(x[[1L]], as.name("||"))) {
+    return(list(x))
   }
-  find_groups(formula[[2L]])
+  unlist(lapply(as.list(x)[-1L], .collect_random_calls), recursive = FALSE)
 }
 
 .human_term <- function(term, component_map) {
@@ -418,6 +418,34 @@ mv <- function(block, components = NULL) {
   )
 }
 
+.random_complete_cases <- function(data, formula) {
+  valid <- rep(TRUE, nrow(data))
+  if (is.null(formula) || !nrow(data)) return(valid)
+  formula_environment <- environment(formula)
+  for (random_call in .collect_random_calls(formula[[2L]])) {
+    slope_formula <- call("~", random_call[[2L]])
+    environment(slope_formula) <- formula_environment
+    model_frame <- stats::model.frame(
+      slope_formula,
+      data = data,
+      na.action = stats::na.pass
+    )
+    grouping_value <- eval(
+      random_call[[3L]],
+      envir = data,
+      enclos = formula_environment
+    )
+    if (is.data.frame(grouping_value) || is.matrix(grouping_value) ||
+        length(grouping_value) != nrow(data)) {
+      stop("Random-effects grouping expressions must produce one value per observation.",
+        call. = FALSE
+      )
+    }
+    valid <- valid & stats::complete.cases(model_frame) & !is.na(grouping_value)
+  }
+  valid
+}
+
 .missing_design_error <- function(ids, missing) {
   affected <- ids[missing]
   stop(
@@ -460,17 +488,84 @@ mv <- function(block, components = NULL) {
   out
 }
 
-.build_term_table <- function(matrix, terms, component_map) {
+.empty_component_data <- function() {
+  data.frame(
+    model_column = character(),
+    column_index = integer(),
+    term_id = character(),
+    generated_column = character(),
+    source_block = character(),
+    component_id = character(),
+    alignment = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.empty_term_data <- function() {
+  data.frame(
+    model_column = character(),
+    column_index = integer(),
+    term_id = character(),
+    term_index = integer(),
+    term = character(),
+    source_term = character(),
+    is_intercept = logical(),
+    source_type = character(),
+    component_count = integer(),
+    source_block = character(),
+    component_id = character(),
+    alignment = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.build_term_metadata <- function(matrix, terms, component_map) {
   term_labels <- c("(Intercept)", attr(terms, "term.labels"))
-  assigned <- attr(matrix, "assign") + 1L
+  term_indices <- attr(matrix, "assign")
+  assigned <- term_indices + 1L
+  component_rows <- list()
   rows <- lapply(seq_len(ncol(matrix)), function(column_index) {
     model_column <- colnames(matrix)[[column_index]]
     source_term <- term_labels[[assigned[[column_index]]]]
     matches <- .term_component_indices(source_term, component_map)
+    variables <- if (identical(source_term, "(Intercept)")) {
+      character()
+    } else {
+      tryCatch(all.vars(str2lang(source_term)), error = function(error) character())
+    }
+    scalar_variables <- setdiff(variables, component_map$column[matches])
+    source_type <- if (identical(source_term, "(Intercept)")) {
+      "intercept"
+    } else if (length(matches) && length(scalar_variables)) {
+      "mixed"
+    } else if (length(matches)) {
+      "axis_block"
+    } else {
+      "scalar"
+    }
+    term_id <- paste0("fixed:", term_indices[[column_index]])
+    if (length(matches)) {
+      component_rows[[length(component_rows) + 1L]] <<- data.frame(
+        model_column = rep(model_column, length(matches)),
+        column_index = rep(column_index, length(matches)),
+        term_id = rep(term_id, length(matches)),
+        generated_column = component_map$column[matches],
+        source_block = component_map$block[matches],
+        component_id = component_map$component_id[matches],
+        alignment = component_map$alignment[matches],
+        stringsAsFactors = FALSE
+      )
+    }
     data.frame(
       model_column = model_column,
+      column_index = column_index,
+      term_id = term_id,
+      term_index = term_indices[[column_index]],
       term = .human_term(source_term, component_map),
-      source_type = if (length(matches)) "axis_block" else "scalar",
+      source_term = source_term,
+      is_intercept = identical(source_term, "(Intercept)"),
+      source_type = source_type,
+      component_count = length(matches),
       source_block = if (length(matches)) {
         paste(unique(component_map$block[matches]), collapse = ";")
       } else {
@@ -489,7 +584,169 @@ mv <- function(block, components = NULL) {
       stringsAsFactors = FALSE
     )
   })
-  do.call(rbind, rows)
+  list(
+    terms = if (length(rows)) do.call(rbind, rows) else .empty_term_data(),
+    components = if (length(component_rows)) {
+      do.call(rbind, component_rows)
+    } else {
+      .empty_component_data()
+    }
+  )
+}
+
+.empty_random_effect_data <- function() {
+  data.frame(
+    random_term_id = character(),
+    effect_column = character(),
+    effect_index = integer(),
+    effect_term = character(),
+    is_intercept = logical(),
+    grouping_expression = character(),
+    operator = character(),
+    correlated = logical(),
+    n_groups = integer(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.empty_grouping_term_data <- function() {
+  data.frame(
+    random_term_id = character(),
+    grouping_expression = character(),
+    grouping_variable = character(),
+    grouping_variable_index = integer(),
+    operator = character(),
+    correlated = logical(),
+    n_groups = integer(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.build_random_metadata <- function(data, formula, frozen_terms = NULL) {
+  if (is.null(formula)) {
+    return(list(
+      effects = .empty_random_effect_data(),
+      groups = .empty_grouping_term_data(),
+      blueprints = list()
+    ))
+  }
+  calls <- .collect_random_calls(formula[[2L]])
+  if (!is.null(frozen_terms) && length(frozen_terms) != length(calls)) {
+    stop("The frozen random-effects design does not match the source formula.",
+      call. = FALSE
+    )
+  }
+  effect_rows <- list()
+  group_rows <- list()
+  blueprints <- vector("list", length(calls))
+  formula_environment <- environment(formula)
+
+  for (index in seq_along(calls)) {
+    random_call <- calls[[index]]
+    operator <- as.character(random_call[[1L]])
+    random_term_id <- paste0("random:", index)
+    grouping_expression <- paste(deparse(random_call[[3L]], width.cutoff = 500L), collapse = "")
+    grouping_variables <- all.vars(random_call[[3L]])
+    grouping_value <- eval(random_call[[3L]], envir = data, enclos = formula_environment)
+    if (is.data.frame(grouping_value) || is.matrix(grouping_value) ||
+        length(grouping_value) != nrow(data)) {
+      stop("Random-effects grouping expressions must produce one value per observation.",
+        call. = FALSE
+      )
+    }
+    n_groups <- length(unique(grouping_value[!is.na(grouping_value)]))
+    slope_formula <- call("~", random_call[[2L]])
+    environment(slope_formula) <- formula_environment
+
+    if (is.null(frozen_terms)) {
+      model_frame <- stats::model.frame(
+        slope_formula,
+        data = data,
+        na.action = stats::na.fail
+      )
+      slope_terms <- stats::terms(model_frame)
+      matrix <- stats::model.matrix(slope_terms, data = model_frame)
+      frozen_contrasts <- .freeze_contrasts(model_frame, matrix, NULL)
+      xlevels <- lapply(
+        model_frame[vapply(model_frame, is.factor, logical(1))],
+        levels
+      )
+      blueprint <- list(
+        random_term_id = random_term_id,
+        terms = slope_terms,
+        xlevels = xlevels,
+        contrasts = frozen_contrasts,
+        model_columns = colnames(matrix),
+        grouping_expression = grouping_expression,
+        grouping_variables = grouping_variables,
+        operator = operator
+      )
+    } else {
+      blueprint <- frozen_terms[[index]]
+      if (!identical(blueprint$random_term_id, random_term_id) ||
+          !identical(blueprint$grouping_expression, grouping_expression) ||
+          !identical(blueprint$operator, operator)) {
+        stop("The frozen random-effects design does not match the source formula.",
+          call. = FALSE
+        )
+      }
+      model_frame <- stats::model.frame(
+        blueprint$terms,
+        data = data,
+        na.action = stats::na.fail,
+        xlev = blueprint$xlevels
+      )
+      slope_terms <- blueprint$terms
+      matrix <- stats::model.matrix(
+        slope_terms,
+        data = model_frame,
+        contrasts.arg = blueprint$contrasts
+      )
+      if (!identical(colnames(matrix), blueprint$model_columns)) {
+        stop("Applied random-effect columns do not match the frozen blueprint.",
+          call. = FALSE
+        )
+      }
+    }
+    blueprints[[index]] <- blueprint
+    assigned <- attr(matrix, "assign")
+    labels <- c("(Intercept)", attr(slope_terms, "term.labels"))
+    effect_rows[[index]] <- if (ncol(matrix)) {
+      data.frame(
+        random_term_id = rep(random_term_id, ncol(matrix)),
+        effect_column = colnames(matrix),
+        effect_index = seq_len(ncol(matrix)),
+        effect_term = labels[assigned + 1L],
+        is_intercept = assigned == 0L,
+        grouping_expression = rep(grouping_expression, ncol(matrix)),
+        operator = rep(operator, ncol(matrix)),
+        correlated = rep(identical(operator, "|"), ncol(matrix)),
+        n_groups = rep(as.integer(n_groups), ncol(matrix)),
+        stringsAsFactors = FALSE
+      )
+    } else {
+      .empty_random_effect_data()
+    }
+    group_rows[[index]] <- data.frame(
+      random_term_id = rep(random_term_id, length(grouping_variables)),
+      grouping_expression = rep(grouping_expression, length(grouping_variables)),
+      grouping_variable = grouping_variables,
+      grouping_variable_index = seq_along(grouping_variables),
+      operator = rep(operator, length(grouping_variables)),
+      correlated = rep(identical(operator, "|"), length(grouping_variables)),
+      n_groups = rep(as.integer(n_groups), length(grouping_variables)),
+      stringsAsFactors = FALSE
+    )
+  }
+  list(
+    effects = if (length(effect_rows)) do.call(rbind, effect_rows) else {
+      .empty_random_effect_data()
+    },
+    groups = if (length(group_rows)) do.call(rbind, group_rows) else {
+      .empty_grouping_term_data()
+    },
+    blueprints = blueprints
+  )
 }
 
 .assemble_compiled_design <- function(
@@ -516,6 +773,20 @@ mv <- function(block, components = NULL) {
   }
   candidate <- if (identical(spec$na_action, "omit")) !input_missing else {
     rep(TRUE, nrow(data))
+  }
+  initial_candidates <- which(candidate)
+  random_complete <- .random_complete_cases(
+    data[initial_candidates, , drop = FALSE],
+    spec$random
+  )
+  random_transform_missing <- rep(FALSE, nrow(data))
+  random_transform_missing[initial_candidates[!random_complete]] <- TRUE
+  if (identical(spec$na_action, "fail") && any(random_transform_missing)) {
+    .missing_design_error(ids, random_transform_missing)
+  }
+  if (identical(spec$na_action, "omit")) {
+    candidate[random_transform_missing] <- FALSE
+    missingness$random[random_transform_missing] <- TRUE
   }
   candidate_rows <- which(candidate)
   if (!length(candidate_rows)) {
@@ -591,12 +862,32 @@ mv <- function(block, components = NULL) {
     retained = retained,
     stringsAsFactors = FALSE
   )
+  random_metadata <- .build_random_metadata(
+    data[retained_rows, , drop = FALSE],
+    spec$random,
+    frozen_terms = if (is.null(frozen_blueprint)) {
+      NULL
+    } else {
+      blueprint$random_terms
+    }
+  )
+  if (is.null(frozen_blueprint)) {
+    blueprint$random_terms <- random_metadata$blueprints
+  }
+  fixed_metadata <- .build_term_metadata(
+    matrix,
+    terms,
+    prepared$component_map
+  )
 
   structure(
     list(
       model_matrix = matrix,
-      terms = .build_term_table(matrix, terms, prepared$component_map),
+      terms = fixed_metadata$terms,
+      components = fixed_metadata$components,
       grouping = data[retained_rows, group_vars, drop = FALSE],
+      grouping_terms = random_metadata$groups,
+      random_effects = random_metadata$effects,
       observation_ids = ids[retained_rows],
       fixed_formula = prepared$rewritten,
       random_formula = spec$random,
@@ -696,6 +987,27 @@ term_data <- function(x) {
 grouping_data <- function(x) {
   if (!inherits(x, "compiled_design")) stop("`x` must be a compiled_design.", call. = FALSE)
   x$grouping
+}
+
+#' @rdname model_matrix
+#' @export
+component_data <- function(x) {
+  if (!inherits(x, "compiled_design")) stop("`x` must be a compiled_design.", call. = FALSE)
+  x$components
+}
+
+#' @rdname model_matrix
+#' @export
+grouping_term_data <- function(x) {
+  if (!inherits(x, "compiled_design")) stop("`x` must be a compiled_design.", call. = FALSE)
+  x$grouping_terms
+}
+
+#' @rdname model_matrix
+#' @export
+random_effect_data <- function(x) {
+  if (!inherits(x, "compiled_design")) stop("`x` must be a compiled_design.", call. = FALSE)
+  x$random_effects
 }
 
 #' @rdname model_matrix

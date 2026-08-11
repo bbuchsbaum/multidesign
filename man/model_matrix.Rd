@@ -4,6 +4,9 @@
 \alias{model_matrix}
 \alias{term_data}
 \alias{grouping_data}
+\alias{component_data}
+\alias{grouping_term_data}
+\alias{random_effect_data}
 \alias{design_blueprint}
 \alias{design_rows}
 \title{Access compiled design products}
@@ -13,6 +16,12 @@ model_matrix(x)
 term_data(x)
 
 grouping_data(x)
+
+component_data(x)
+
+grouping_term_data(x)
+
+random_effect_data(x)
 
 design_blueprint(x)
 

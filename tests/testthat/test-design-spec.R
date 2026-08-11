@@ -471,3 +471,132 @@ test_that("contrast specifications reject ambiguous or unused declarations", {
     "not a categorical predictor|unused"
   )
 })
+
+test_that("fixed term metadata has stable group and component relations", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(
+    frame,
+    design_spec(~ Fac1 * mv(motion, c("rotation", "translation")))
+  )
+  terms <- term_data(compiled)
+  components <- component_data(compiled)
+
+  expect_identical(terms$column_index, seq_len(ncol(model_matrix(compiled))))
+  expect_identical(terms$model_column, colnames(model_matrix(compiled)))
+  expect_true(all(c(
+    "term_id", "term_index", "source_term", "is_intercept",
+    "source_type", "component_count"
+  ) %in% names(terms)))
+  expect_identical(terms$term_id[terms$is_intercept], "fixed:0")
+  expect_true(all(terms$source_type[grepl(":", terms$source_term)] == "mixed"))
+
+  expect_identical(
+    names(components),
+    c(
+      "model_column", "column_index", "term_id", "generated_column",
+      "source_block", "component_id", "alignment"
+    )
+  )
+  expect_identical(unique(components$source_block), "motion")
+  expect_setequal(unique(components$component_id), c("rotation", "translation"))
+  expect_true(all(components$model_column %in% terms$model_column))
+  expect_true(all(components$term_id %in% terms$term_id))
+  expect_identical(
+    terms$component_count,
+    tabulate(match(components$model_column, terms$model_column), nbins = nrow(terms))
+  )
+})
+
+test_that("random effect and grouping metadata normalize multiple bar terms", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(
+    frame,
+    design_spec(
+      ~ Fac1 + age,
+      ~ (1 + Fac1 | subject_id) + (0 + age || stimulus_id)
+    )
+  )
+  effects <- random_effect_data(compiled)
+  groups <- grouping_term_data(compiled)
+
+  expect_identical(
+    names(effects),
+    c(
+      "random_term_id", "effect_column", "effect_index", "effect_term",
+      "is_intercept", "grouping_expression", "operator", "correlated",
+      "n_groups"
+    )
+  )
+  expect_identical(effects$random_term_id, c("random:1", "random:1", "random:2"))
+  expect_identical(effects$effect_column, c("(Intercept)", "Fac1B", "age"))
+  expect_identical(effects$operator, c("|", "|", "||"))
+  expect_identical(effects$correlated, c(TRUE, TRUE, FALSE))
+  expect_identical(effects$n_groups, c(4L, 4L, 3L))
+
+  expect_identical(
+    names(groups),
+    c(
+      "random_term_id", "grouping_expression", "grouping_variable",
+      "grouping_variable_index", "operator", "correlated", "n_groups"
+    )
+  )
+  expect_identical(groups$random_term_id, c("random:1", "random:2"))
+  expect_identical(groups$grouping_variable, c("subject_id", "stimulus_id"))
+  expect_identical(names(grouping_data(compiled)), c("subject_id", "stimulus_id"))
+})
+
+test_that("random-effect transformations participate in missingness policy", {
+  frame <- .design_frame_fixture()
+  frame$observations$data$random_cov <- c(1, 2, -1, 4, 5, 6, 7, 8)
+  spec_fail <- design_spec(
+    ~ Fac1,
+    ~ 1 + log(random_cov) | subject_id,
+    na_action = "fail"
+  )
+  expect_warning(
+    expect_error(compile_design(frame, spec_fail), "obs-3"),
+    "NaNs produced"
+  )
+  spec_omit <- design_spec(
+    ~ Fac1,
+    ~ 1 + log(random_cov) | subject_id,
+    na_action = "omit"
+  )
+  expect_warning(
+    compiled <- compile_design(frame, spec_omit),
+    "NaNs produced"
+  )
+
+  expect_identical(compiled$observation_ids, fmridataset::observation_ids(frame)[-3L])
+  expect_identical(which(design_rows(compiled)$random_missing), 3L)
+  expect_false(anyNA(random_effect_data(compiled)))
+})
+
+test_that("metadata schemas survive frozen application and serialization", {
+  frame <- .design_frame_fixture()
+  compiled <- compile_design(
+    frame,
+    design_spec(
+      ~ Fac1 * mv(stimulus.visual_pca, c("PC02", "PC01")),
+      ~ 1 + Fac1 | subject_id
+    )
+  )
+  selected <- c(8L, 1L, 6L, 3L)
+  old_options <- options(contrasts = c("contr.helmert", "contr.poly"))
+  on.exit(options(old_options), add = TRUE)
+  applied <- apply_design(compiled, frame[selected, ])
+
+  expect_identical(term_data(applied), term_data(compiled))
+  expect_identical(component_data(applied), component_data(compiled))
+  expect_identical(
+    random_effect_data(applied)[setdiff(names(random_effect_data(applied)), "n_groups")],
+    random_effect_data(compiled)[setdiff(names(random_effect_data(compiled)), "n_groups")]
+  )
+  expect_identical(
+    grouping_term_data(applied)[setdiff(names(grouping_term_data(applied)), "n_groups")],
+    grouping_term_data(compiled)[setdiff(names(grouping_term_data(compiled)), "n_groups")]
+  )
+  restored <- unserialize(serialize(compiled, NULL))
+  expect_identical(component_data(restored), component_data(compiled))
+  expect_identical(random_effect_data(restored), random_effect_data(compiled))
+})
