@@ -27,3 +27,8 @@
   design dependencies and referenced block/component selectors, never imaging
   assays or feature layout; assessment designs always reuse an analysis-fitted
   blueprint.
+* Added randomized dense-reference, permutation, backend, identifier, cache,
+  and selector stress tests. Overlapping `mv()` terms now reuse one generated
+  column per stable block/component identity, and generated names are fixed by
+  the block's complete component domain so syntactically hostile IDs remain
+  unambiguous across different selections.

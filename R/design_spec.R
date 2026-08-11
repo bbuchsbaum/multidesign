@@ -234,7 +234,9 @@ mv <- function(block, components = NULL) {
     target = target,
     matrix = matrix,
     components = components,
-    alignment = alignment
+    alignment = alignment,
+    component_index = component_index,
+    all_component_ids = fmridataset::block_components(block)$.component_id
   )
 }
 
@@ -323,7 +325,12 @@ mv <- function(block, components = NULL) {
   calls <- calls[!duplicated(keys)]
   keys <- keys[!duplicated(keys)]
   replacements <- list()
-  component_rows <- list()
+  component_map <- data.frame(
+    column = character(),
+    block = character(),
+    component_id = character(),
+    alignment = character()
+  )
   mv_terms <- vector("list", length(calls))
 
   if (!is.null(frozen_mv_terms) && length(frozen_mv_terms) != length(calls)) {
@@ -341,10 +348,11 @@ mv <- function(block, components = NULL) {
         environment(spec$fixed)
       )
       component_ids <- resolved$components$.component_id
-      columns <- make.names(
-        paste("mv", resolved$target, component_ids, sep = "__"),
+      all_columns <- make.names(
+        paste("mv", resolved$target, resolved$all_component_ids, sep = "__"),
         unique = TRUE
       )
+      columns <- all_columns[resolved$component_index]
       term <- list(
         key = keys[[index]],
         target = resolved$target,
@@ -369,32 +377,39 @@ mv <- function(block, components = NULL) {
       component_ids <- term$component_ids
       columns <- term$columns
     }
-    if (any(columns %in% names(data))) {
+    existing <- match(columns, component_map$column)
+    reused <- !is.na(existing)
+    if (any(reused)) {
+      compatible <- component_map$block[existing[reused]] == resolved$target &
+        component_map$component_id[existing[reused]] == component_ids[reused]
+      if (!all(compatible)) {
+        stop("Compiled multivariate column name is ambiguous across components.",
+          call. = FALSE
+        )
+      }
+    }
+    scalar_collision <- is.na(existing) & columns %in% names(data)
+    if (any(scalar_collision)) {
       stop("Compiled multivariate column name collides with scalar metadata.",
         call. = FALSE
       )
     }
-    data[columns] <- resolved$matrix
+    new <- is.na(existing)
+    if (any(new)) data[columns[new]] <- resolved$matrix[, new, drop = FALSE]
     replacements[[keys[[index]]]] <- .plus_expression(columns)
-    component_rows[[index]] <- data.frame(
-      column = columns,
-      block = resolved$target,
-      component_id = component_ids,
-      alignment = resolved$alignment,
-      stringsAsFactors = FALSE
-    )
+    if (any(new)) {
+      component_map <- rbind(
+        component_map,
+        data.frame(
+          column = columns[new],
+          block = resolved$target,
+          component_id = component_ids[new],
+          alignment = resolved$alignment,
+          stringsAsFactors = FALSE
+        )
+      )
+    }
     mv_terms[[index]] <- term
-  }
-
-  component_map <- if (length(component_rows)) {
-    do.call(rbind, component_rows)
-  } else {
-    data.frame(
-      column = character(),
-      block = character(),
-      component_id = character(),
-      alignment = character()
-    )
   }
   rewritten <- spec$fixed
   rewritten[[2L]] <- .replace_mv_calls(rewritten[[2L]], replacements)
