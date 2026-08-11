@@ -904,11 +904,13 @@ mv <- function(block, components = NULL) {
 #'
 #' @param frame An `fmri_frame` or synchronized `fmri_view`.
 #' @param spec A `design_spec`.
+#' @param cache Optional runtime [design_cache()]. Cache keys exclude imaging
+#'   assays and feature layout and include every semantic design dependency.
 #' @return A `compiled_design` containing the dense fixed-effects model matrix,
 #'   exact component- and alignment-aware term metadata, grouping data, stable
 #'   observation IDs, and the retained source specification.
 #' @export
-compile_design <- function(frame, spec) {
+compile_design <- function(frame, spec, cache = NULL) {
   if (!inherits(frame, c("fmri_frame", "fmri_view"))) {
     stop("`frame` must be an fmri_frame or fmri_view.", call. = FALSE)
   }
@@ -916,6 +918,7 @@ compile_design <- function(frame, spec) {
     stop("`spec` must be a design_spec.", call. = FALSE)
   }
   .validate_design_spec(spec)
+  if (!is.null(cache)) .validate_design_cache(cache)
   if (!is.null(spec$random) &&
       length(.collect_mv_calls(spec$random[[2L]]))) {
     stop(
@@ -930,8 +933,16 @@ compile_design <- function(frame, spec) {
       call. = FALSE
     )
   }
+  input_digest <- design_input_digest(frame, spec)
+  if (!is.null(cache)) {
+    cached <- .design_cache_get(cache, input_digest)
+    if (!is.null(cached)) return(cached)
+  }
   prepared <- .prepare_design_data(frame, spec)
-  .assemble_compiled_design(frame, spec, prepared)
+  compiled <- .assemble_compiled_design(frame, spec, prepared)
+  compiled$input_digest <- input_digest
+  if (!is.null(cache)) .design_cache_put(cache, input_digest, compiled)
+  compiled
 }
 
 #' Apply a frozen design blueprint to another frame

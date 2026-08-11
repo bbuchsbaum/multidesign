@@ -4,12 +4,15 @@
 \alias{compile_design}
 \title{Compile a design specification against an fmri frame}
 \usage{
-compile_design(frame, spec)
+compile_design(frame, spec, cache = NULL)
 }
 \arguments{
 \item{frame}{An `fmri_frame` or synchronized `fmri_view`.}
 
 \item{spec}{A `design_spec`.}
+
+\item{cache}{Optional runtime [design_cache()]. Cache keys exclude imaging
+assays and feature layout and include every semantic design dependency.}
 }
 \value{
 A `compiled_design` containing the dense fixed-effects model matrix,

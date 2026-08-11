@@ -21,3 +21,9 @@
   `random_effect_data()` describe multiple `|` and `||` terms without requiring
   downstream formula parsing. Random-effect transformations now participate in
   the compiled missing-value policy.
+* Added semantic `design_input_digest()` and `design_digest()` fingerprints,
+  bounded mutation-isolated runtime caches for `compile_design()`, and
+  `compile_design_folds()` for leakage-safe frame folds. Cache keys track only
+  design dependencies and referenced block/component selectors, never imaging
+  assays or feature layout; assessment designs always reuse an analysis-fitted
+  blueprint.

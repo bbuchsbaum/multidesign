@@ -17,6 +17,7 @@ Imports:
     chk,
     tibble,
     dplyr,
+    digest,
     fmridataset,
     multivarious,
     crayon,
