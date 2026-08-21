@@ -63,7 +63,14 @@ for modeling multi-block data, where you want to analyze multiple related matric
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for class 'list'</span></span>
-<span><span class="fu"><a href="hyperdesign.html">hyperdesign</a></span><span class="op">(</span><span class="va">x</span>, block_names <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="hyperdesign.html">hyperdesign</a></span><span class="op">(</span></span>
+<span>  <span class="va">x</span>,</span>
+<span>  block_names <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  id <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  space <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  positional <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  aggregate <span class="op">=</span> <span class="cn">NULL</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -77,6 +84,27 @@ for modeling multi-block data, where you want to analyze multiple related matric
 <dt id="arg-block-names">block_names<a class="anchor" aria-label="anchor" href="#arg-block-names"></a></dt>
 <dd><p>Optional character vector of names for each block. If NULL, blocks will be
 automatically named as "block_1", "block_2", etc.</p></dd>
+
+
+<dt id="arg-id">id<a class="anchor" aria-label="anchor" href="#arg-id"></a></dt>
+<dd><p>Optional length-one character string naming the design column whose
+values identify corresponding entities across blocks.</p></dd>
+
+
+<dt id="arg-space">space<a class="anchor" aria-label="anchor" href="#arg-space"></a></dt>
+<dd><p>Optional column-space declaration: `"common"` when all blocks
+inhabit the same column space, or `"block"` when columns are block-specific.</p></dd>
+
+
+<dt id="arg-positional">positional<a class="anchor" aria-label="anchor" href="#arg-positional"></a></dt>
+<dd><p>Logical; if `TRUE`, declare positional row correspondence.
+This requires `id = NULL` and equal row counts in every block.</p></dd>
+
+
+<dt id="arg-aggregate">aggregate<a class="anchor" aria-label="anchor" href="#arg-aggregate"></a></dt>
+<dd><p>Optional duplicate-entity aggregation rule. `NULL` preserves
+the duplicate-key error. `"mean"` or a scalar-returning function collapses
+within-block replicates after requiring all non-key design fields to agree.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -95,6 +123,16 @@ automatically named as "block_1", "block_2", etc.</p></dd>
 <dd><p>Matrix of row start/end indices for each block</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Rows may represent independent trials or entities that correspond across
+blocks. Supplying `id` declares the latter role by naming a design column to
+join on. It does not change the row-by-column storage orientation.
+`common_vars` records shared design-column names (schema); `id` records the
+values that link rows (correspondence). `space = "common"` requires equal
+column counts and identical column designs, while `space = "block"` allows
+block-specific columns.</p>
+    </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="df_to_hyperdesign.html">df_to_hyperdesign</a></code> for creating hyperdesign objects from data frames,

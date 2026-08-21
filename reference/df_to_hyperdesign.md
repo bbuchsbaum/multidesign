@@ -9,7 +9,16 @@ subjects or sessions in an experiment.
 ## Usage
 
 ``` r
-df_to_hyperdesign(data, design_vars, x_vars, split_var)
+df_to_hyperdesign(
+  data,
+  design_vars,
+  x_vars,
+  split_var,
+  id = NULL,
+  space = NULL,
+  positional = FALSE,
+  aggregate = NULL
+)
 ```
 
 ## Arguments
@@ -32,6 +41,25 @@ df_to_hyperdesign(data, design_vars, x_vars, split_var)
 
   Character string naming the variable to split the data on (e.g.,
   "subject" or "session")
+
+- id:
+
+  Optional entity ID column forwarded to \[hyperdesign()\]. The column
+  must be included in \`design_vars\`.
+
+- space:
+
+  Optional column-space declaration forwarded to \[hyperdesign()\].
+
+- positional:
+
+  Logical positional-correspondence declaration forwarded to
+  \[hyperdesign()\].
+
+- aggregate:
+
+  Optional duplicate-entity aggregation rule forwarded to
+  \[hyperdesign()\].
 
 ## Value
 

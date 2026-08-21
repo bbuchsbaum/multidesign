@@ -62,7 +62,7 @@ experimental designs where observations have multiple associated factors and var
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">multidesign</span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'matrix'</span></span>
-<span><span class="fu">multidesign</span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, column_design <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">multidesign</span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, column_design <span class="op">=</span> <span class="cn">NULL</span>, cells <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -83,6 +83,12 @@ experimental designs where observations have multiple associated factors and var
 
 <dt id="arg-column-design">column_design<a class="anchor" aria-label="anchor" href="#arg-column-design"></a></dt>
 <dd><p>Optional data frame containing metadata for columns in x (must have same number of rows as ncol(x))</p></dd>
+
+
+<dt id="arg-cells">cells<a class="anchor" aria-label="anchor" href="#arg-cells"></a></dt>
+<dd><p>Optional logical matrix with dimensions identical to `x` and no
+missing values. `NULL` means no explicit mask; it is never inferred from
+missing values in `x`.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -111,16 +117,19 @@ experimental designs where observations have multiple associated factors and var
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>A multidesign object consists of three main components:
+    <p>A multidesign object consists of three core components and an optional mask:
 * A data matrix where rows represent observations and columns represent variables
 * A design data frame containing experimental factors and conditions for each observation
-* Optional column metadata describing properties of each variable</p>
+* Optional column metadata describing properties of each variable
+* An optional logical cell-observation mask with the same dimensions as the data matrix</p>
 <p>A multidesign object consists of three main components:
 * A data matrix where rows represent observations and columns represent variables
 * A design data frame containing experimental factors and conditions for each observation
-* Optional column metadata describing properties of each variable</p>
+* Optional column metadata describing properties of each variable
+* An optional logical cell-observation mask aligned exactly with the data matrix</p>
 <p>The object maintains the relationship between these components while providing methods
-for manipulation, subsetting, and analysis.</p>
+for manipulation, subsetting, and analysis. A value of `NA` in `x` is
+ordinary data unless the corresponding `cells` entry is explicitly `FALSE`.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -148,6 +157,15 @@ for manipulation, subsetting, and analysis.</p>
 <span class="r-in"><span><span class="co"># Create multidesign object</span></span></span>
 <span class="r-in"><span><span class="va">mds</span> <span class="op">&lt;-</span> <span class="fu">multidesign</span><span class="op">(</span><span class="va">X</span>, <span class="va">Y</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Missing values do not imply missing cells; store a mask explicitly</span></span></span>
+<span class="r-in"><span><span class="va">cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">cells</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span><span class="va">masked</span> <span class="op">&lt;-</span> <span class="fu">multidesign</span><span class="op">(</span><span class="va">X</span>, <span class="va">Y</span>, cells <span class="op">=</span> <span class="va">cells</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="cell_mask.html">has_cell_mask</a></span><span class="op">(</span><span class="va">masked</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
+<span class="r-in"><span><span class="fu"><a href="cell_mask.html">cell_mask</a></span><span class="op">(</span><span class="va">masked</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">]</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Split by condition</span></span></span>
 <span class="r-in"><span><span class="va">sdes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">condition</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -168,6 +186,15 @@ for manipulation, subsetting, and analysis.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Create multidesign object</span></span></span>
 <span class="r-in"><span><span class="va">mds</span> <span class="op">&lt;-</span> <span class="fu">multidesign</span><span class="op">(</span><span class="va">X</span>, <span class="va">Y</span>, <span class="va">col_info</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Store cell observation independently of data values</span></span></span>
+<span class="r-in"><span><span class="va">mask</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">mask</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span><span class="va">masked_mds</span> <span class="op">&lt;-</span> <span class="fu">multidesign</span><span class="op">(</span><span class="va">X</span>, <span class="va">Y</span>, <span class="va">col_info</span>, cells <span class="op">=</span> <span class="va">mask</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="cell_mask.html">cell_mask</a></span><span class="op">(</span><span class="va">masked_mds</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>       [,1] [,2]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1,] FALSE TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [2,]  TRUE TRUE</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

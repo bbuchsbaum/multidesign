@@ -47,6 +47,8 @@ together:
 - **Row design** (`design`): a tibble describing each observation
 - **Column design** (`column_design`): a tibble describing each variable
   (optional)
+- **Cell mask** (`cells`): an optional logical matrix recording observed
+  entries
 
 ### When to use
 
@@ -103,18 +105,19 @@ md
 
 ### Key methods
 
-| Method                     | Description                                    |
-|----------------------------|------------------------------------------------|
-| `xdata(x)`                 | Extract the data matrix                        |
-| `design(x)`                | Extract row design (without internal `.index`) |
-| `column_design(x)`         | Extract column design                          |
-| `subset(x, expr)`          | Filter rows by design expression               |
-| `split(x, ...)`            | Split into list by design variables            |
-| `select_variables(x, ...)` | Filter columns by column_design expression     |
-| `summarize_by(x, ...)`     | Compute group summaries                        |
-| `fold_over(x, ...)`        | Create cross-validation folds                  |
-| `cv_rows(x, rows)`         | Create folds from explicit row indices         |
-| `split_indices(x, ...)`    | Get row indices grouped by design variables    |
+| Method | Description |
+|----|----|
+| `xdata(x)` | Extract the data matrix |
+| `design(x)` | Extract row design (without internal `.index`) |
+| `column_design(x)` | Extract column design |
+| `cell_mask(x)` / `has_cell_mask(x)` | Query the optional cell-observation mask |
+| `subset(x, expr)` | Filter rows by design expression |
+| `split(x, ...)` | Split into list by design variables |
+| `select_variables(x, ...)` | Filter columns by column_design expression |
+| `summarize_by(x, ...)` | Compute group summaries |
+| `fold_over(x, ...)` | Create cross-validation folds |
+| `cv_rows(x, rows)` | Create folds from explicit row indices |
+| `split_indices(x, ...)` | Get row indices grouped by design variables |
 
 ### Examples
 
@@ -224,7 +227,9 @@ called, it returns a `reduced_multidesign` with:
 
 A `hyperdesign` manages multiple `multidesign` objects (called “blocks”)
 that share common design variables. This is the natural structure for
-multi-subject, multi-session, or multi-modal experiments.
+multi-subject, multi-session, or multi-modal experiments. Optional `id`
+and `space` contracts also support blocks whose rows are corresponding
+entities in a shared column space.
 
 ### When to use
 
@@ -308,8 +313,12 @@ hd
 | `xdata(x)` / `xdata(x, block=i)` | Extract data (all blocks or specific block) |
 | `design(x)` / `design(x, block=i)` | Extract design (all blocks or specific block) |
 | `column_design(x)` | Extract column design |
+| `entity_id(x)` / `column_space(x)` | Query the optional entity and space contracts |
+| `correspondence(x)` | Map local rows to the global entity universe |
+| `align_by_id(x)` | Join common-space blocks into aligned arrays |
 | `subset(x, expr)` | Filter all blocks by expression |
 | `select_variables(x, ...)` | Filter columns in all blocks |
+| `summarize_by(x, ..., aggregate=)` | Summarize every block; masked inputs need an explicit rule |
 | `fold_over(x)` | Leave-one-block-out folds |
 | `fold_over(x, var)` | Within-block folds by variable |
 | `cv_rows(x, rows)` | Create synchronized row-index folds |
@@ -369,6 +378,17 @@ table(design(md_collapsed)$subject)
 #> subject_1 subject_2 subject_3 
 #>        20        20        20
 ```
+
+For corresponding entities, construct with `id =` and
+`space = "common"`, then use
+[`align_by_id()`](https://bbuchsbaum.github.io/multidesign/reference/align_by_id.md)
+when an explicit join is needed. This is distinct from
+[`as_multidesign()`](https://bbuchsbaum.github.io/multidesign/reference/as_multidesign.md),
+which always row-stacks. The aligned result contains an
+entity-by-variable-by-block data array, a same-shaped cell mask, and a
+separate entity-by-block row-presence matrix. See the [Getting Started
+vignette](https://bbuchsbaum.github.io/multidesign/articles/Introduction.html#when-rows-correspond-across-blocks)
+for a runnable partial-overlap example.
 
 ### Alternative construction: from data frame
 
@@ -862,14 +882,17 @@ design(md_flat)
 | [`xdata()`](https://bbuchsbaum.github.io/multidesign/reference/xdata.md) | ✓ | ✓ | ✓ | \- |
 | [`design()`](https://bbuchsbaum.github.io/multidesign/reference/design.md) | ✓ | ✓ | ✓ | \- |
 | [`column_design()`](https://bbuchsbaum.github.io/multidesign/reference/column_design.md) | ✓ | ✓ | \- | \- |
+| [`cell_mask()`](https://bbuchsbaum.github.io/multidesign/reference/cell_mask.md) | ✓ | \- | \- | \- |
 | [`subset()`](https://rdrr.io/r/base/subset.html) | ✓ | ✓ | ✓ | \- |
 | [`split()`](https://rdrr.io/r/base/split.html) | ✓ | \- | ✓ | \- |
 | [`select_variables()`](https://bbuchsbaum.github.io/multidesign/reference/select_variables.md) | ✓ | ✓ | \- | \- |
-| [`summarize_by()`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.md) | ✓ | \- | ✓ | \- |
+| [`summarize_by()`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.md) | ✓ | ✓ | ✓ | \- |
 | [`fold_over()`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.md) | ✓ | ✓ | ✓ | \- |
 | [`cv_rows()`](https://bbuchsbaum.github.io/multidesign/reference/cv_rows.md) | ✓ | ✓ | ✓ | \- |
 | [`split_indices()`](https://bbuchsbaum.github.io/multidesign/reference/split_indices.md) | ✓ | \- | ✓ | \- |
 | [`block_indices()`](https://bbuchsbaum.github.io/multidesign/reference/block_indices.md) | \- | ✓ | \- | ✓ |
+| [`correspondence()`](https://bbuchsbaum.github.io/multidesign/reference/correspondence.md) | \- | ✓ | \- | \- |
+| [`align_by_id()`](https://bbuchsbaum.github.io/multidesign/reference/align_by_id.md) | \- | ✓ | \- | \- |
 | [`is_cstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_cstacked.md) | \- | \- | \- | ✓ |
 | [`is_rstacked()`](https://bbuchsbaum.github.io/multidesign/reference/is_rstacked.md) | \- | \- | \- | ✓ |
 
@@ -904,18 +927,16 @@ sessionInfo()
 #> [1] dplyr_1.2.1            tibble_3.3.1           multidesign_0.1.0.9000
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] Matrix_1.7-5       gtable_0.3.6       jsonlite_2.0.0     crayon_1.5.3      
-#>  [5] compiler_4.6.1     tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2       
-#>  [9] geigen_2.4         jquerylib_0.1.4    systemfonts_1.3.2  scales_1.4.0      
-#> [13] textshaping_1.0.5  yaml_2.3.12        fastmap_1.2.0      lattice_0.22-9    
-#> [17] ggplot2_4.0.3      R6_2.6.1           generics_0.1.4     knitr_1.51        
-#> [21] chk_0.10.0         desc_1.4.3         bslib_0.12.0       pillar_1.11.1     
-#> [25] RColorBrewer_1.1-3 multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
-#> [29] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
-#> [33] S7_0.2.2           otel_0.2.0         memoise_2.0.1      cli_3.6.6         
-#> [37] withr_3.0.3        pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39     
-#> [41] grid_4.6.1         lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    
-#> [45] glue_1.8.1         farver_2.1.2       ragg_1.5.2         deflist_0.2.0     
-#> [49] purrr_1.2.2        rmarkdown_2.31     albersdown_2.0.0   tools_4.6.1       
-#> [53] pkgconfig_2.0.3    htmltools_0.5.9
+#>  [1] Matrix_1.7-5       jsonlite_2.0.0     crayon_1.5.3       compiler_4.6.1    
+#>  [5] tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2        geigen_2.4        
+#>  [9] jquerylib_0.1.4    systemfonts_1.3.2  textshaping_1.0.5  yaml_2.3.12       
+#> [13] fastmap_1.2.0      lattice_0.22-9     R6_2.6.1           generics_0.1.4    
+#> [17] knitr_1.51         desc_1.4.3         chk_0.10.0         bslib_0.12.0      
+#> [21] pillar_1.11.1      multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
+#> [25] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
+#> [29] otel_0.2.0         memoise_2.0.1      cli_3.6.6          withr_3.0.3       
+#> [33] pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39      grid_4.6.1        
+#> [37] lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5     glue_1.8.1        
+#> [41] ragg_1.5.2         deflist_0.2.0      rmarkdown_2.31     purrr_1.2.2       
+#> [45] tools_4.6.1        pkgconfig_2.0.3    htmltools_0.5.9
 ```

@@ -17,7 +17,7 @@ have metadata.
 multidesign(x, y, ...)
 
 # S3 method for class 'matrix'
-multidesign(x, y, column_design = NULL, ...)
+multidesign(x, y, column_design = NULL, cells = NULL, ...)
 ```
 
 ## Arguments
@@ -39,6 +39,12 @@ multidesign(x, y, column_design = NULL, ...)
 
   Optional data frame containing metadata for columns in x (must have
   same number of rows as ncol(x))
+
+- cells:
+
+  Optional logical matrix with dimensions identical to \`x\` and no
+  missing values. \`NULL\` means no explicit mask; it is never inferred
+  from missing values in \`x\`.
 
 ## Value
 
@@ -72,20 +78,24 @@ A multidesign object with components:
 
 ## Details
 
-A multidesign object consists of three main components: \* A data matrix
-where rows represent observations and columns represent variables \* A
-design data frame containing experimental factors and conditions for
-each observation \* Optional column metadata describing properties of
-each variable
+A multidesign object consists of three core components and an optional
+mask: \* A data matrix where rows represent observations and columns
+represent variables \* A design data frame containing experimental
+factors and conditions for each observation \* Optional column metadata
+describing properties of each variable \* An optional logical
+cell-observation mask with the same dimensions as the data matrix
 
 A multidesign object consists of three main components: \* A data matrix
 where rows represent observations and columns represent variables \* A
 design data frame containing experimental factors and conditions for
 each observation \* Optional column metadata describing properties of
-each variable
+each variable \* An optional logical cell-observation mask aligned
+exactly with the data matrix
 
 The object maintains the relationship between these components while
-providing methods for manipulation, subsetting, and analysis.
+providing methods for manipulation, subsetting, and analysis. A value of
+\`NA\` in \`x\` is ordinary data unless the corresponding \`cells\`
+entry is explicitly \`FALSE\`.
 
 ## See also
 
@@ -120,6 +130,15 @@ Y <- tibble::tibble(condition=rep(letters[1:5], 4))
 # Create multidesign object
 mds <- multidesign(X, Y)
 
+# Missing values do not imply missing cells; store a mask explicitly
+cells <- matrix(TRUE, nrow(X), ncol(X))
+cells[1, 1] <- FALSE
+masked <- multidesign(X, Y, cells = cells)
+has_cell_mask(masked)
+#> [1] TRUE
+cell_mask(masked)[1, 1]
+#> [1] FALSE
+
 # Split by condition
 sdes <- split(mds, condition)
 
@@ -140,4 +159,13 @@ col_info <- data.frame(
 
 # Create multidesign object
 mds <- multidesign(X, Y, col_info)
+
+# Store cell observation independently of data values
+mask <- matrix(TRUE, nrow(X), ncol(X))
+mask[1, 1] <- FALSE
+masked_mds <- multidesign(X, Y, col_info, cells = mask)
+cell_mask(masked_mds)[1:2, 1:2]
+#>       [,1] [,2]
+#> [1,] FALSE TRUE
+#> [2,]  TRUE TRUE
 ```

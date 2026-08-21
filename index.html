@@ -58,26 +58,11 @@
 </h1></div>
 <!-- badges: start -->
 
+<p><a href="vignettes/Introduction.Rmd">Getting started</a> · <a href="vignettes/class_overview.Rmd">Class overview</a> · <a href="NEWS.html">Changelog</a> · <a href="https://github.com/bbuchsbaum/multidesign/issues" class="external-link">Issue tracker</a></p>
 <p><code>multidesign</code> is an R package for multivariate experimental data where the matrix alone is not enough. It keeps observation-level design metadata and variable-level metadata attached to the data, so subsetting, grouping, splitting, and cross-validation stay aligned.</p>
-<p>This is especially useful for workflows in neuroimaging, behavioral science, psychophysics, and other settings where you need to manage:</p>
-<ul>
-<li>observations such as trials, scans, or time points</li>
-<li>variables such as ROIs, sensors, or engineered features</li>
-<li>row-wise design factors such as condition, run, session, or subject</li>
-<li>multi-block datasets spanning subjects, sessions, or modalities</li>
-</ul>
-<div class="section level2">
-<h2 id="why-use-multidesign">Why use <code>multidesign</code>?<a class="anchor" aria-label="anchor" href="#why-use-multidesign"></a>
-</h2>
-<ul>
-<li>Keep the data matrix, row design, and optional column metadata in one object.</li>
-<li>Filter observations with design-aware <code><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset()</a></code> semantics.</li>
-<li>Select variables using column metadata via <code><a href="reference/select_variables.html">select_variables()</a></code>.</li>
-<li>Split and summarize by experimental factors with <code><a href="https://rdrr.io/r/base/split.html" class="external-link">split()</a></code> and <code><a href="reference/summarize_by.html">summarize_by()</a></code>.</li>
-<li>Build cross-validation folds that respect your design with <code><a href="reference/fold_over.html">fold_over()</a></code> and <code><a href="reference/cv_rows.html">cv_rows()</a></code>.</li>
-<li>Scale from a single matrix to multi-subject or lazy-loading workflows with <code>hyperdesign</code> and <code>multiframe</code>.</li>
-</ul>
-</div>
+<blockquote>
+<p><strong>Status:</strong> Pre-release and source-only. The API may change before the first stable release.</p>
+</blockquote>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
@@ -85,6 +70,41 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"remotes"</span><span class="op">)</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"bbuchsbaum/multidesign"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="quick-start">Quick start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://bbuchsbaum.github.io/multidesign/">multidesign</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">X</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">24</span><span class="op">)</span>, nrow <span class="op">=</span> <span class="fl">6</span><span class="op">)</span></span>
+<span><span class="va">md</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"face"</span>, <span class="st">"house"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">3</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>network <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"visual"</span>, <span class="st">"control"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">face_visual</span> <span class="op">&lt;-</span> <span class="va">md</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">condition</span> <span class="op">==</span> <span class="st">"face"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="reference/select_variables.html">select_variables</a></span><span class="op">(</span><span class="va">network</span> <span class="op">==</span> <span class="st">"visual"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">face_visual</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      [,1] [,2]</span></span>
+<span><span class="co">#&gt; [1,]    1    7</span></span>
+<span><span class="co">#&gt; [2,]    2    8</span></span>
+<span><span class="co">#&gt; [3,]    3    9</span></span></code></pre></div>
+<p>The matrix, row design, and column metadata stay synchronized through both operations. This is the ordinary single-block workflow; use <code>hyperdesign</code> when the data naturally contains several related blocks.</p>
+</div>
+<div class="section level2">
+<h2 id="why-use-multidesign">Why use <code>multidesign</code>?<a class="anchor" aria-label="anchor" href="#why-use-multidesign"></a>
+</h2>
+<ul>
+<li>Keep the data matrix, row design, optional column metadata, and explicit cell-observation mask together.</li>
+<li>Filter observations and variables without manually realigning metadata or masks.</li>
+<li>Split, summarize, and build cross-validation folds from experimental design variables.</li>
+<li>Represent corresponding entities across blocks without changing the package’s row-centric matrix orientation.</li>
+<li>Scale to multi-subject, multi-session, or lazy-loading workflows with <code>hyperdesign</code> and <code>multiframe</code>.</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="core-objects">Core objects<a class="anchor" aria-label="anchor" href="#core-objects"></a>
@@ -105,7 +125,7 @@
 </tr>
 <tr>
 <td><code>hyperdesign</code></td>
-<td>You have multiple related <code>multidesign</code> objects, such as one per subject or session.</td>
+<td>You have multiple related blocks, optionally linked by corresponding entity IDs.</td>
 </tr>
 <tr>
 <td><code>multiframe</code></td>
@@ -120,12 +140,81 @@
 <p>Most workflows start with <code>multidesign</code> and move to <code>hyperdesign</code> when the data naturally breaks into subject-, session-, or modality-level blocks.</p>
 </div>
 <div class="section level2">
-<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<h2 id="corresponding-rows-and-partial-observations">Corresponding rows and partial observations<a class="anchor" aria-label="anchor" href="#corresponding-rows-and-partial-observations"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://bbuchsbaum.github.io/multidesign/">multidesign</a></span><span class="op">)</span></span>
+<p>Rows usually represent trials, scans, or other independent observations. They can also represent known entities—such as landmarks or tasks—that recur across blocks. A <code>hyperdesign</code> can declare that second role with an entity key:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">shape_a</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">NA</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>landmark <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  cells <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">FALSE</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>    byrow <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">shape_b</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>landmark <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"D"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
+<span><span class="va">shapes</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/hyperdesign.html">hyperdesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shape_a <span class="op">=</span> <span class="va">shape_a</span>, shape_b <span class="op">=</span> <span class="va">shape_b</span><span class="op">)</span>,</span>
+<span>  id <span class="op">=</span> <span class="st">"landmark"</span>,</span>
+<span>  space <span class="op">=</span> <span class="st">"common"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">corr</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/correspondence.html">correspondence</a></span><span class="op">(</span><span class="va">shapes</span><span class="op">)</span></span>
+<span><span class="va">corr</span><span class="op">$</span><span class="va">global_ids</span></span>
+<span><span class="co">#&gt; [1] "A" "B" "C" "D"</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="va">corr</span><span class="op">$</span><span class="va">row_map</span><span class="op">)</span></span>
+<span><span class="co">#&gt;         [,1] [,2] [,3]</span></span>
+<span><span class="co">#&gt; shape_a    1    2    3</span></span>
+<span><span class="co">#&gt; shape_b    2    3    4</span></span>
+<span><span class="va">corr</span><span class="op">$</span><span class="va">overlap</span><span class="op">$</span><span class="va">pair_n</span></span>
+<span><span class="co">#&gt;         shape_a shape_b</span></span>
+<span><span class="co">#&gt; shape_a       3       2</span></span>
+<span><span class="co">#&gt; shape_b       2       3</span></span>
+<span></span>
+<span><span class="va">aligned</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/align_by_id.html">align_by_id</a></span><span class="op">(</span><span class="va">shapes</span><span class="op">)</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">observed</span></span>
+<span><span class="co">#&gt;   shape_a shape_b</span></span>
+<span><span class="co">#&gt; A    TRUE   FALSE</span></span>
+<span><span class="co">#&gt; B    TRUE    TRUE</span></span>
+<span><span class="co">#&gt; C    TRUE    TRUE</span></span>
+<span><span class="co">#&gt; D   FALSE    TRUE</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">cells</span><span class="op">[</span>, , <span class="st">"shape_a"</span><span class="op">]</span></span>
+<span><span class="co">#&gt;       variable</span></span>
+<span><span class="co">#&gt; entity     1     2</span></span>
+<span><span class="co">#&gt;      A  TRUE  TRUE</span></span>
+<span><span class="co">#&gt;      B  TRUE FALSE</span></span>
+<span><span class="co">#&gt;      C FALSE FALSE</span></span>
+<span><span class="co">#&gt;      D FALSE FALSE</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">x</span><span class="op">[</span>, , <span class="st">"shape_a"</span><span class="op">]</span></span>
+<span><span class="co">#&gt;       variable</span></span>
+<span><span class="co">#&gt; entity  1  2</span></span>
+<span><span class="co">#&gt;      A NA  0</span></span>
+<span><span class="co">#&gt;      B  1 NA</span></span>
+<span><span class="co">#&gt;      C NA NA</span></span>
+<span><span class="co">#&gt;      D NA NA</span></span>
+<span></span>
+<span><span class="fu"><a href="reference/correspondence.html">correspondence</a></span><span class="op">(</span><span class="va">shapes</span>, sort_ids <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">$</span><span class="va">global_ids</span></span>
+<span><span class="co">#&gt; [1] "A" "B" "C" "D"</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">shapes</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">corr</span><span class="op">$</span><span class="va">global_ids</span><span class="op">[</span><span class="va">corr</span><span class="op">$</span><span class="va">row_map</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span><span class="op">]</span>, <span class="va">corr</span><span class="op">$</span><span class="va">ids</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/logical.html" class="external-link">logical</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>The aligned result distinguishes three states that can all display as <code>NA</code> in <code>aligned$x</code>: landmark D is absent from <code>shape_a</code> (<code>observed</code> is <code>FALSE</code>), landmark C is present but has an all-<code>FALSE</code> cell-mask row, and landmark A’s first coordinate is observed even though its stored value is <code>NA</code>. The <code>fill</code> argument changes only the displayed value for absent or masked cells; consult <code>observed</code> and <code>cells</code> for their meaning. A missing value in <code>x</code> never creates a mask implicitly.</p>
+<p>This is a role of the row key, not a second matrix orientation. <strong>Do not store features × observations in <code>x</code> to satisfy a left-action formula.</strong> A solver that uses left-action notation should transpose at its boundary.</p>
+<p>The declarations answer different questions: <code>common_vars</code> records design columns shared by every block (schema), <code>id</code> names values that join rows (correspondence), and <code>space</code> says whether columns are shared axes (<code>"common"</code>) or block-specific variables (<code>"block"</code>). <code><a href="reference/as_multidesign.html">as_multidesign()</a></code> always row-stacks; it never joins by <code>id</code>, and it refuses <code>space = "block"</code>. <code><a href="reference/align_by_id.html">align_by_id()</a></code> is the explicit join: it returns common-space arrays on the global entity universe, but it does not fit an alignment model.</p>
+<p>Cell masks move with ordinary row and column subsets. When masked rows or duplicate entity keys must be combined, aggregation is explicit: <code>summarize_by(x, group, aggregate = "mean")</code> and <code>hyperdesign(blocks, id = "landmark", aggregate = "mean")</code>. A custom scalar-returning function may replace <code>"mean"</code>. Stacking promotes an unmasked block to all observed when another block has a mask. Preprocessing and dimensionality reduction reject partial masks because those operations do not declare how the mask itself transforms.</p>
+<p>These contracts let downstream packages validate data for generalized Procrustes analysis without putting transforms, gauges, fitting, or certification in <code>multidesign</code>. Likewise, <code>fold_over(shapes, landmark)</code> holds an entity out from all blocks where it occurs; it is an ordinary data split, not a specialized Bai–Bartoli/LBW cross-validation engine. Use <code>positional = TRUE</code> only when equal row positions really are the correspondence and that fragile assumption is intentional.</p>
+</div>
+<div class="section level2">
+<h2 id="design-aware-cross-validation">Design-aware cross-validation<a class="anchor" aria-label="anchor" href="#design-aware-cross-validation"></a>
+</h2>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Simulate a trial-by-feature matrix</span></span>
 <span><span class="va">X</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">40</span> <span class="op">*</span> <span class="fl">8</span><span class="op">)</span>, nrow <span class="op">=</span> <span class="fl">40</span>, ncol <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
@@ -195,13 +284,9 @@
 <li><a href="https://bbuchsbaum.github.io/multidesign/">Package website</a></li>
 <li><a href="vignettes/Introduction.Rmd">Getting started vignette</a></li>
 <li><a href="vignettes/class_overview.Rmd">Class overview vignette</a></li>
+<li><a href="NEWS.html">Changelog</a></li>
 <li><a href="https://github.com/bbuchsbaum/multidesign/issues" class="external-link">Issue tracker</a></li>
 </ul>
-</div>
-<div class="section level2">
-<h2 id="development-status">Development status<a class="anchor" aria-label="anchor" href="#development-status"></a>
-</h2>
-<p>The package already includes tests for the core data structures and cross-validation pipeline, but the API is still evolving. Expect the README and vignettes to be the best entry points while the package matures.</p>
 </div>
 <div class="section level2">
 <h2 id="albers-theme">Albers theme<a class="anchor" aria-label="anchor" href="#albers-theme"></a>

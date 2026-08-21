@@ -2,7 +2,9 @@
 
 Method to initialize transformations (e.g., scaling, centering) for
 hyperdesign objects. Each block in the hyperdesign gets its own
-transformation object.
+transformation object. Hyperdesigns with partial cell masks are rejected
+because preprocessors do not declare how masks transform. All-\`TRUE\`
+masks are reshaped with the output, while absent masks remain absent.
 
 ## Usage
 
@@ -19,7 +21,8 @@ init_transform(x, X, ...)
 
 - X:
 
-  A preprocessing specification (e.g., from recipes package)
+  A preprocessing specification supported by \`multivarious\`, such as
+  \`multivarious::center()\`.
 
 - ...:
 
@@ -43,12 +46,10 @@ Other hyperdesign functions:
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
 d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
                   data.frame(cond = rep(c("A","B"), 5)))
 d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
                   data.frame(cond = rep(c("A","B"), 5)))
 hd <- hyperdesign(list(d1, d2))
-hd_transformed <- init_transform(hd, recipes::recipe(~ ., data = as.data.frame(d1$x)))
-} # }
+hd_transformed <- init_transform(hd, multivarious::center())
 ```

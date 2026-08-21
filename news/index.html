@@ -41,8 +41,40 @@
 <h2 class="pkg-version" data-toc-text="0.1.0.9000" id="multidesign-0109000-development">multidesign 0.1.0.9000 (Development)<a class="anchor" aria-label="anchor" href="#multidesign-0109000-development"></a></h2>
 <ul><li>Added <code><a href="../reference/design_spec.html">design_spec()</a></code> and the <code><a href="../reference/mv.html">mv()</a></code> formula special for frame-native design definitions.</li>
 <li>Added <code><a href="../reference/compile_design.html">compile_design()</a></code> with observation- and entity-block expansion, component-aware term metadata, factor-preserving dense parity, and random grouping metadata. Imaging assays remain owned by <code>fmridataset</code>.</li>
+</ul><div class="section level3">
+<h3 id="entity-correspondence-and-column-space-contracts-0-1-0-9000">Entity correspondence and column-space contracts<a class="anchor" aria-label="anchor" href="#entity-correspondence-and-column-space-contracts-0-1-0-9000"></a></h3>
+<ul><li>
+<code><a href="../reference/hyperdesign.html">hyperdesign()</a></code> can now declare an entity key with <code>id</code>, a column-space contract with <code>space = "common"</code> or <code>space = "block"</code>, or deliberately positional correspondence with <code>positional = TRUE</code>.</li>
+<li>
+<code><a href="../reference/correspondence.html">correspondence()</a></code> exposes the global entity universe, local-to-global row maps, block incidence, pairwise overlap counts, and connectivity. First-seen entity order remains the default; <code>sort_ids = TRUE</code> requests deterministic sorted order without mutating the source object.</li>
+<li>
+<code><a href="../reference/entity_id.html">entity_id()</a></code>, <code><a href="../reference/column_space.html">column_space()</a></code>, and <code><a href="../reference/has_correspondence.html">has_correspondence()</a></code> expose the contract without requiring consumers to inspect attributes directly.</li>
+<li>Subsetting reconstructs the contract and recomputes correspondence. <code><a href="../reference/select_variables.html">select_variables()</a></code> revalidates common column spaces, while row folds retain ordinary local-row semantics.</li>
 </ul></div>
-  </main></div>
+<div class="section level3">
+<h3 id="explicit-cell-observation-masks-0-1-0-9000">Explicit cell-observation masks<a class="anchor" aria-label="anchor" href="#explicit-cell-observation-masks-0-1-0-9000"></a></h3>
+<ul><li>
+<code>multidesign(..., cells =)</code> accepts an optional logical matrix matching the data dimensions. <code><a href="../reference/cell_mask.html">cell_mask()</a></code> and <code><a href="../reference/cell_mask.html">has_cell_mask()</a></code> query it. Missing values in <code>x</code> never create a mask implicitly, and an all-<code>FALSE</code> mask row remains a real design row.</li>
+<li>Row and column subsets, splits, folds, and variable selection propagate masks exactly. <code><a href="../reference/bind_multidesign.html">bind_multidesign()</a></code> and <code><a href="../reference/as_multidesign.html">as_multidesign()</a></code> row-stack masks and treat unmasked inputs as all observed when another input has an explicit mask.</li>
+<li>Masked <code><a href="../reference/summarize_by.html">summarize_by()</a></code> requires an explicit <code>aggregate</code> rule. Duplicate entity keys can likewise be collapsed explicitly in <code><a href="../reference/hyperdesign.html">hyperdesign()</a></code> with <code>aggregate = "mean"</code> or a scalar-returning function; conflicting non-key metadata remains an error.</li>
+<li>Preprocessing and dimensionality reduction reject partial masks until those operations can declare how observation masks transform.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="explicit-entity-alignment-0-1-0-9000">Explicit entity alignment<a class="anchor" aria-label="anchor" href="#explicit-entity-alignment-0-1-0-9000"></a></h3>
+<ul><li>
+<code><a href="../reference/align_by_id.html">align_by_id()</a></code> joins common-space blocks onto the global entity universe and returns an <code>aligned_hyperdesign</code> containing a data array, a same-shaped cell mask, and a separate entity-by-block row-presence matrix.</li>
+<li>Absent rows and explicitly unobserved cells receive the requested display <code>fill</code>, but <code>observed</code> and <code>cells</code> remain authoritative. An observed <code>NA</code>, an unobserved cell, and an absent row therefore remain distinguishable.</li>
+<li>
+<code><a href="../reference/as_multidesign.html">as_multidesign()</a></code> remains a row-stack operation. <code><a href="../reference/align_by_id.html">align_by_id()</a></code> is a data organization helper, not a generalized Procrustes solver; transforms, gauges, fitting, and certificates remain consumer responsibilities.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="compatibility-and-maintenance-0-1-0-9000">Compatibility and maintenance<a class="anchor" aria-label="anchor" href="#compatibility-and-maintenance-0-1-0-9000"></a></h3>
+<ul><li>Existing objects without correspondence or mask contracts retain their previous behavior.</li>
+<li>No new hard dependency was added. The unused <code>recipes</code> import was removed.</li>
+</ul></div>
+</div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">

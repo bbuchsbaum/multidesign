@@ -12,7 +12,14 @@ response measures
 
 ``` r
 # S3 method for class 'list'
-hyperdesign(x, block_names = NULL)
+hyperdesign(
+  x,
+  block_names = NULL,
+  id = NULL,
+  space = NULL,
+  positional = FALSE,
+  aggregate = NULL
+)
 ```
 
 ## Arguments
@@ -26,6 +33,29 @@ hyperdesign(x, block_names = NULL)
 
   Optional character vector of names for each block. If NULL, blocks
   will be automatically named as "block_1", "block_2", etc.
+
+- id:
+
+  Optional length-one character string naming the design column whose
+  values identify corresponding entities across blocks.
+
+- space:
+
+  Optional column-space declaration: \`"common"\` when all blocks
+  inhabit the same column space, or \`"block"\` when columns are
+  block-specific.
+
+- positional:
+
+  Logical; if \`TRUE\`, declare positional row correspondence. This
+  requires \`id = NULL\` and equal row counts in every block.
+
+- aggregate:
+
+  Optional duplicate-entity aggregation rule. \`NULL\` preserves the
+  duplicate-key error. \`"mean"\` or a scalar-returning function
+  collapses within-block replicates after requiring all non-key design
+  fields to agree.
 
 ## Value
 
@@ -46,6 +76,16 @@ A hyperdesign object with the following components:
 - row_indices:
 
   Matrix of row start/end indices for each block
+
+## Details
+
+Rows may represent independent trials or entities that correspond across
+blocks. Supplying \`id\` declares the latter role by naming a design
+column to join on. It does not change the row-by-column storage
+orientation. \`common_vars\` records shared design-column names
+(schema); \`id\` records the values that link rows (correspondence).
+\`space = "common"\` requires equal column counts and identical column
+designs, while \`space = "block"\` allows block-specific columns.
 
 ## See also
 

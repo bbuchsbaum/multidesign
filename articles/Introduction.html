@@ -66,19 +66,6 @@
 
     
     
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"ggplot2"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"albersdown"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/get_theme.html" class="external-link">theme_set</a></span><span class="op">(</span><span class="fu">albersdown</span><span class="fu">::</span><span class="fu"><a href="https://bbuchsbaum.github.io/albersdown/reference/theme_albers.html" class="external-link">theme_albers</a></span><span class="op">(</span>family <span class="op">=</span> <span class="va">params</span><span class="op">$</span><span class="va">family</span>, preset <span class="op">=</span> <span class="va">params</span><span class="op">$</span><span class="va">preset</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://bbuchsbaum.github.io/multidesign/">multidesign</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tibble.tidyverse.org/" class="external-link">tibble</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Attaching package: 'dplyr'</span></span>
-<span><span class="co">#&gt; The following objects are masked from 'package:stats':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     filter, lag</span></span>
-<span><span class="co">#&gt; The following objects are masked from 'package:base':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     intersect, setdiff, setequal, union</span></span></code></pre></div>
 <script>document.addEventListener("DOMContentLoaded",function(){document.body.classList.remove("palette-red","palette-lapis","palette-ochre","palette-teal","palette-green","palette-violet","preset-homage","preset-study","preset-structural","preset-adobe","preset-midnight");document.body.classList.add("palette-ochre","preset-homage");});</script><div class="section level2">
 <h2 id="why-multidesign">Why multidesign?<a class="anchor" aria-label="anchor" href="#why-multidesign"></a>
 </h2>
@@ -169,7 +156,7 @@ neuroimaging-style data.</p>
 <p>Imagine a simple experiment: 2 conditions (face vs. house), 10
 subjects, 20 trials per condition per subject, measuring activity in 50
 brain regions.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Simulate data for one subject</span></span>
 <span><span class="va">n_trials</span> <span class="op">&lt;-</span> <span class="fl">40</span></span>
 <span><span class="va">n_regions</span> <span class="op">&lt;-</span> <span class="fl">50</span></span>
@@ -197,7 +184,7 @@ brain regions.</p>
 </h3>
 <p>Combine your data matrix, design information, and column metadata
 into a single object:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/multidesign.html">multidesign</a></span><span class="op">(</span><span class="va">X</span>, <span class="va">design_df</span>, <span class="va">column_info</span><span class="op">)</span></span>
 <span><span class="va">mds</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -220,7 +207,7 @@ into a single object:</p>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span></code></pre></div>
 <p>The <code>multidesign</code> object keeps everything synchronized.
 You can extract components with accessor functions:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get the data matrix</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="../reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">mds</span><span class="op">)</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;            [,1]       [,2]        [,3]         [,4]       [,5]</span></span>
@@ -259,7 +246,7 @@ You can extract components with accessor functions:</p>
 <h3 id="step-3-explore-and-subset-your-data">Step 3: Explore and subset your data<a class="anchor" aria-label="anchor" href="#step-3-explore-and-subset-your-data"></a>
 </h3>
 <p>Filter observations by design variables:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Keep only face trials</span></span>
 <span><span class="va">mds_face</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">condition</span> <span class="op">==</span> <span class="st">"face"</span><span class="op">)</span></span>
 <span><span class="va">mds_face</span></span>
@@ -287,7 +274,7 @@ You can extract components with accessor functions:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">mds_run1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 10</span></span></code></pre></div>
 <p>Select variables (columns) by their metadata:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Keep only visual network regions</span></span>
 <span><span class="va">mds_visual</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/select_variables.html">select_variables</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">network</span> <span class="op">==</span> <span class="st">"visual"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">ncol</a></span><span class="op">(</span><span class="fu"><a href="../reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">mds_visual</span><span class="op">)</span><span class="op">)</span></span>
@@ -316,7 +303,7 @@ You can extract components with accessor functions:</p>
 <h3 id="step-4-summarize-by-design-factors">Step 4: Summarize by design factors<a class="anchor" aria-label="anchor" href="#step-4-summarize-by-design-factors"></a>
 </h3>
 <p>Compute summary statistics grouped by design variables:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Mean activity per condition</span></span>
 <span><span class="va">mds_means</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarize_by.html">summarize_by</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">condition</span><span class="op">)</span></span>
 <span><span class="va">mds_means</span></span>
@@ -351,7 +338,7 @@ You can extract components with accessor functions:</p>
 <h3 id="step-5-split-for-detailed-analysis">Step 5: Split for detailed analysis<a class="anchor" aria-label="anchor" href="#step-5-split-for-detailed-analysis"></a>
 </h3>
 <p>Split into separate multidesign objects:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Split by condition</span></span>
 <span><span class="va">by_condition</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">condition</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">by_condition</span><span class="op">)</span></span>
@@ -384,7 +371,7 @@ You can extract components with accessor functions:</p>
 </h3>
 <p>Create cross-validation folds that respect your experimental
 design:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Leave-one-run-out cross-validation</span></span>
 <span><span class="va">folds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fold_over.html">fold_over</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">run</span><span class="op">)</span></span>
 <span><span class="va">folds</span></span>
@@ -420,7 +407,7 @@ design:</p>
 <span><span class="co">#&gt; [1] 10</span></span></code></pre></div>
 <p>If downstream code needs stable source-row identities, ask fold
 construction to carry them through:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">folds_with_ids</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fold_over.html">fold_over</a></span><span class="op">(</span><span class="va">mds</span>, <span class="va">run</span>, preserve_row_ids <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">folds_with_ids</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">assessment</span><span class="op">$</span><span class="va">design</span><span class="op">$</span><span class="va">.orig_index</span></span>
 <span><span class="co">#&gt;  [1]  1  2  3  4  5  6  7  8  9 10</span></span></code></pre></div>
@@ -430,7 +417,7 @@ construction to carry them through:</p>
 </h3>
 <p>Use <code><a href="../reference/cross_validate.html">cross_validate()</a></code> to execute a complete CV
 workflow:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Define a simple "model": compute condition means on training data</span></span>
 <span><span class="va">fit_fn</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">analysis</span><span class="op">)</span> <span class="op">{</span></span>
 <span> <span class="va">means_by_cond</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarize_by.html">summarize_by</a></span><span class="op">(</span><span class="va">analysis</span>, <span class="va">condition</span><span class="op">)</span></span>
@@ -467,7 +454,7 @@ workflow:</p>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; ===============================</span></span></span>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span></code></pre></div>
 <p>Examine detailed results:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get summary statistics</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">cv_result</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 6</span></span></span>
@@ -494,7 +481,7 @@ workflow:</p>
 <p>Real experiments typically have multiple subjects. A
 <code>hyperdesign</code> manages multiple <code>multidesign</code>
 objects that share common design structure.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create data for 3 subjects</span></span>
 <span><span class="va">subjects</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="kw">function</span><span class="op">(</span><span class="va">subj</span><span class="op">)</span> <span class="op">{</span></span>
 <span> <span class="va">X_subj</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_trials</span> <span class="op">*</span> <span class="va">n_regions</span><span class="op">)</span>, <span class="va">n_trials</span>, <span class="va">n_regions</span><span class="op">)</span></span>
@@ -548,9 +535,199 @@ objects that share common design structure.</p>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; =======================</span></span></span>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span></code></pre></div>
 <div class="section level3">
+<h3 id="when-rows-correspond-across-blocks">When rows correspond across blocks<a class="anchor" aria-label="anchor" href="#when-rows-correspond-across-blocks"></a>
+</h3>
+<p>The subjects above contain independent trials in the same order, but
+a hyperdesign can also store known entities that recur across blocks.
+Examples include landmarks measured in several configurations or tasks
+embedded by several models. The matrices remain entities by variables;
+the entity key is a design column, not an instruction to transpose the
+data.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">configuration_a</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">NA</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>landmark <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  cells <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">FALSE</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>    byrow <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">configuration_b</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>landmark <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"D"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">configurations</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hyperdesign.html">hyperdesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>a <span class="op">=</span> <span class="va">configuration_a</span>, b <span class="op">=</span> <span class="va">configuration_b</span><span class="op">)</span>,</span>
+<span>  id <span class="op">=</span> <span class="st">"landmark"</span>,</span>
+<span>  space <span class="op">=</span> <span class="st">"common"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/entity_id.html">entity_id</a></span><span class="op">(</span><span class="va">configurations</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "landmark"</span></span>
+<span><span class="fu"><a href="../reference/column_space.html">column_space</a></span><span class="op">(</span><span class="va">configurations</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "common"</span></span>
+<span></span>
+<span><span class="va">corr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/correspondence.html">correspondence</a></span><span class="op">(</span><span class="va">configurations</span><span class="op">)</span></span>
+<span><span class="va">corr</span><span class="op">$</span><span class="va">global_ids</span></span>
+<span><span class="co">#&gt; [1] "A" "B" "C" "D"</span></span>
+<span><span class="va">corr</span><span class="op">$</span><span class="va">row_map</span></span>
+<span><span class="co">#&gt; $a</span></span>
+<span><span class="co">#&gt; [1] 1 2 3</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $b</span></span>
+<span><span class="co">#&gt; [1] 2 3 4</span></span>
+<span><span class="va">corr</span><span class="op">$</span><span class="va">overlap</span><span class="op">$</span><span class="va">pair_n</span></span>
+<span><span class="co">#&gt;   a b</span></span>
+<span><span class="co">#&gt; a 3 2</span></span>
+<span><span class="co">#&gt; b 2 3</span></span>
+<span></span>
+<span><span class="va">aligned</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/align_by_id.html">align_by_id</a></span><span class="op">(</span><span class="va">configurations</span><span class="op">)</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">observed</span></span>
+<span><span class="co">#&gt;       a     b</span></span>
+<span><span class="co">#&gt; A  TRUE FALSE</span></span>
+<span><span class="co">#&gt; B  TRUE  TRUE</span></span>
+<span><span class="co">#&gt; C  TRUE  TRUE</span></span>
+<span><span class="co">#&gt; D FALSE  TRUE</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">cells</span><span class="op">[</span>, , <span class="st">"a"</span><span class="op">]</span></span>
+<span><span class="co">#&gt;       variable</span></span>
+<span><span class="co">#&gt; entity     1     2</span></span>
+<span><span class="co">#&gt;      A  TRUE  TRUE</span></span>
+<span><span class="co">#&gt;      B  TRUE FALSE</span></span>
+<span><span class="co">#&gt;      C FALSE FALSE</span></span>
+<span><span class="co">#&gt;      D FALSE FALSE</span></span>
+<span><span class="va">aligned</span><span class="op">$</span><span class="va">x</span><span class="op">[</span>, , <span class="st">"a"</span><span class="op">]</span></span>
+<span><span class="co">#&gt;       variable</span></span>
+<span><span class="co">#&gt; entity  1  2</span></span>
+<span><span class="co">#&gt;      A NA  0</span></span>
+<span><span class="co">#&gt;      B  1 NA</span></span>
+<span><span class="co">#&gt;      C NA NA</span></span>
+<span><span class="co">#&gt;      D NA NA</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/correspondence.html">correspondence</a></span><span class="op">(</span><span class="va">configurations</span>, sort_ids <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">$</span><span class="va">global_ids</span></span>
+<span><span class="co">#&gt; [1] "A" "B" "C" "D"</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">configurations</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">corr</span><span class="op">$</span><span class="va">global_ids</span><span class="op">[</span><span class="va">corr</span><span class="op">$</span><span class="va">row_map</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span><span class="op">]</span>, <span class="va">corr</span><span class="op">$</span><span class="va">ids</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/logical.html" class="external-link">logical</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>The global entity universe uses first-seen order, while each
+<code>row_map</code> maps local rows into it. Partial overlap is valid,
+and <code>corr$overlap$connected</code> reports whether the
+block-overlap graph is connected. A disconnected graph is data for a
+downstream solver to evaluate, not a construction error.</p>
+<p>Row presence and cell observation are deliberately separate. In the
+aligned result above, landmark D is absent from block <code>a</code>,
+landmark C is present in <code>a</code> but has an
+all-<code>FALSE</code> cell-mask row, and landmark A’s first coordinate
+is observed even though its value is <code>NA</code>. All three may
+display as <code>NA</code> in the aligned data array. Use
+<code>observed</code> to ask whether the row exists and
+<code>cells</code> to ask whether a coordinate was observed.
+<code>fill</code> controls only presentation; missing values in
+<code>x</code> never create a mask.</p>
+<p>Three related concepts remain separate:</p>
+<ul>
+<li>
+<code>common_vars</code> describes design-column names found in
+every block: shared schema.</li>
+<li>
+<code>id</code> names the design-column values that link rows across
+blocks: a join key.</li>
+<li>
+<code>space = "common"</code> asserts that every matrix uses the
+same column axes; <code>space = "block"</code> declares block-specific
+variables.</li>
+</ul>
+<p><code><a href="../reference/as_multidesign.html">as_multidesign()</a></code> is a row-stack operation, not an ID
+join, and therefore refuses <code>space = "block"</code>.
+<code><a href="../reference/align_by_id.html">align_by_id()</a></code> is the deliberately separate join: it
+constructs entity-by-variable-by-block arrays for
+<code>space = "common"</code>, while preserving both row presence and
+cell observation. It does not estimate transformations. Similarly,
+<code>fold_over(configurations, landmark)</code> holds each entity out
+of every block in which it occurs. That is a general data split, not
+Bai–Bartoli/LBW smoothness cross-validation.</p>
+<div class="section level4">
+<h4 id="masks-under-data-operations">Masks under data operations<a class="anchor" aria-label="anchor" href="#masks-under-data-operations"></a>
+</h4>
+<p>An explicit <code>cells</code> matrix must be logical, contain no
+<code>NA</code>, and match <code>x</code> exactly.
+<code><a href="../reference/cell_mask.html">cell_mask()</a></code> returns it, while <code><a href="../reference/cell_mask.html">has_cell_mask()</a></code>
+distinguishes a stored mask from the legacy unmasked case. Row and
+column subsets, folds, and variable selection slice the mask with the
+data. Row stacking preserves masks; if only some inputs are masked,
+unmasked inputs are promoted to all observed.</p>
+<p>Combining masked observations requires an explicit rule. For grouped
+summaries use <code>aggregate = "mean"</code> (or a scalar-returning
+function):</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">replicates</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/multidesign.html">multidesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">10</span>, <span class="fl">3</span>, <span class="fl">30</span>, <span class="fl">8</span>, <span class="fl">80</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>landmark <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  cells <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">TRUE</span>, <span class="cn">TRUE</span>, <span class="cn">FALSE</span>, <span class="cn">FALSE</span><span class="op">)</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>    byrow <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">replicate_means</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hyperdesign.html">hyperdesign</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>sample <span class="op">=</span> <span class="va">replicates</span><span class="op">)</span>,</span>
+<span>  id <span class="op">=</span> <span class="st">"landmark"</span>,</span>
+<span>  space <span class="op">=</span> <span class="st">"common"</span>,</span>
+<span>  aggregate <span class="op">=</span> <span class="st">"mean"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/xdata.html">xdata</a></span><span class="op">(</span><span class="va">replicate_means</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   [,1] [,2]</span></span>
+<span><span class="co">#&gt; A    2   30</span></span>
+<span><span class="co">#&gt; B    8   80</span></span>
+<span><span class="fu"><a href="../reference/cell_mask.html">cell_mask</a></span><span class="op">(</span><span class="va">replicate_means</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    [,1]  [,2]</span></span>
+<span><span class="co">#&gt; A  TRUE  TRUE</span></span>
+<span><span class="co">#&gt; B FALSE FALSE</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/summarize_by.html">summarize_by</a></span><span class="op">(</span><span class="va">replicates</span>, <span class="va">landmark</span>, aggregate <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; === Multidesign Object ===</span></span></span>
+<span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span>
+<span><span class="co">#&gt; Data Matrix: </span></span>
+<span><span class="co">#&gt;    2 observations x 2 variables </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Observed Cells: </span></span>
+<span><span class="co">#&gt;    2 of 4 explicitly observed</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Design Variables: </span></span>
+<span><span class="co">#&gt;   <span style="color: #BBBBBB;">*</span> landmark: <span style="color: #00BB00;">2</span> levels (A, B)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Column Metadata:</span></span>
+<span><span class="co">#&gt;   <span style="color: #BBBBBB;">*</span> .index: <span style="color: #00BB00;">2</span> levels (1, 2)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; =======================</span></span></span>
+<span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span></code></pre></div>
+<p>For each output coordinate, the rule receives values whose cell masks
+are <code>TRUE</code>; a coordinate with no observed inputs remains
+masked. Duplicate entity keys remain an error when
+<code>aggregate</code> is omitted. Preprocessing and dimensional
+reduction reject partial masks because their transformation objects do
+not specify how a mask changes. All-<code>TRUE</code> masks can pass
+those boundaries, and a legacy <code>NULL</code> mask remains
+<code>NULL</code>.</p>
+<p><strong>Do not store features × observations in <code>x</code> to
+satisfy a left-action formula.</strong> Generalized Procrustes solvers
+should transpose at their own API boundary. <code>multidesign</code>
+carries correspondence and column-space declarations; specialized
+packages remain responsible for transformations, fitting, gauges, and
+certificates. Cell-aware fitting likewise belongs to those consumer
+packages; <code>multidesign</code> only carries and reshapes the mask.
+Use <code>positional = TRUE</code> only for deliberately positional
+correspondence with equal row counts.</p>
+</div>
+</div>
+<div class="section level3">
 <h3 id="leave-one-subject-out-cross-validation">Leave-one-subject-out cross-validation<a class="anchor" aria-label="anchor" href="#leave-one-subject-out-cross-validation"></a>
 </h3>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Without specifying variables, fold_over creates leave-one-block-out folds</span></span>
 <span><span class="va">loso_folds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fold_over.html">fold_over</a></span><span class="op">(</span><span class="va">hd</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">loso_folds</span><span class="op">)</span></span>
@@ -583,7 +760,7 @@ objects that share common design structure.</p>
 <div class="section level3">
 <h3 id="within-subject-cross-validation">Within-subject cross-validation<a class="anchor" aria-label="anchor" href="#within-subject-cross-validation"></a>
 </h3>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Fold by run within each subject</span></span>
 <span><span class="va">run_folds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fold_over.html">fold_over</a></span><span class="op">(</span><span class="va">hd</span>, <span class="va">run</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">run_folds</span><span class="op">)</span></span>
@@ -594,7 +771,7 @@ objects that share common design structure.</p>
 </h3>
 <p>When you already know the held-out rows, use <code><a href="../reference/cv_rows.html">cv_rows()</a></code>
 to build a <code>foldlist</code> directly:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">row_folds</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_rows.html">cv_rows</a></span><span class="op">(</span></span>
 <span>  <span class="va">hd</span>,</span>
 <span>  rows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -633,7 +810,7 @@ to build a <code>foldlist</code> directly:</p>
 <span><span class="co"><span style="color: #0000BB; font-weight: bold;">#&gt; </span></span></span></code></pre></div>
 <p>Use <code>preserve_row_ids = TRUE</code> here as well if external
 correspondence tables or annotations are keyed by original rows:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">row_folds_with_ids</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_rows.html">cv_rows</a></span><span class="op">(</span></span>
 <span>  <span class="va">hd</span>,</span>
 <span>  rows <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>subj1 <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, subj2 <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -653,7 +830,7 @@ correspondence tables or annotations are keyed by original rows:</p>
 <h3 id="collapse-to-a-single-multidesign">Collapse to a single multidesign<a class="anchor" aria-label="anchor" href="#collapse-to-a-single-multidesign"></a>
 </h3>
 <p>If you need to analyze all subjects together:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Collapse hyperdesign to one multidesign</span></span>
 <span><span class="va">mds_all</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_multidesign.html">as_multidesign</a></span><span class="op">(</span><span class="va">hd</span>, .id <span class="op">=</span> <span class="st">"subject"</span><span class="op">)</span></span>
 <span><span class="va">mds_all</span></span>
@@ -700,7 +877,7 @@ documentation of each class</li>
 <div class="section level2">
 <h2 id="session-info">Session info<a class="anchor" aria-label="anchor" href="#session-info"></a>
 </h2>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html" class="external-link">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R version 4.6.1 (2026-06-24)</span></span>
 <span><span class="co">#&gt; Platform: x86_64-pc-linux-gnu</span></span>
@@ -726,20 +903,18 @@ documentation of each class</li>
 <span><span class="co">#&gt; [1] dplyr_1.2.1            tibble_3.3.1           multidesign_0.1.0.9000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
-<span><span class="co">#&gt;  [1] Matrix_1.7-5       gtable_0.3.6       jsonlite_2.0.0     crayon_1.5.3      </span></span>
-<span><span class="co">#&gt;  [5] compiler_4.6.1     tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2       </span></span>
-<span><span class="co">#&gt;  [9] geigen_2.4         jquerylib_0.1.4    systemfonts_1.3.2  scales_1.4.0      </span></span>
-<span><span class="co">#&gt; [13] textshaping_1.0.5  yaml_2.3.12        fastmap_1.2.0      lattice_0.22-9    </span></span>
-<span><span class="co">#&gt; [17] ggplot2_4.0.3      R6_2.6.1           generics_0.1.4     knitr_1.51        </span></span>
-<span><span class="co">#&gt; [21] chk_0.10.0         desc_1.4.3         bslib_0.12.0       pillar_1.11.1     </span></span>
-<span><span class="co">#&gt; [25] RColorBrewer_1.1-3 multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        </span></span>
-<span><span class="co">#&gt; [29] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       </span></span>
-<span><span class="co">#&gt; [33] S7_0.2.2           otel_0.2.0         memoise_2.0.1      cli_3.6.6         </span></span>
-<span><span class="co">#&gt; [37] withr_3.0.3        pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39     </span></span>
-<span><span class="co">#&gt; [41] grid_4.6.1         lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    </span></span>
-<span><span class="co">#&gt; [45] glue_1.8.1         farver_2.1.2       ragg_1.5.2         deflist_0.2.0     </span></span>
-<span><span class="co">#&gt; [49] purrr_1.2.2        rmarkdown_2.31     albersdown_2.0.0   tools_4.6.1       </span></span>
-<span><span class="co">#&gt; [53] pkgconfig_2.0.3    htmltools_0.5.9</span></span></code></pre></div>
+<span><span class="co">#&gt;  [1] Matrix_1.7-5       jsonlite_2.0.0     crayon_1.5.3       compiler_4.6.1    </span></span>
+<span><span class="co">#&gt;  [5] tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2        geigen_2.4        </span></span>
+<span><span class="co">#&gt;  [9] jquerylib_0.1.4    systemfonts_1.3.2  textshaping_1.0.5  yaml_2.3.12       </span></span>
+<span><span class="co">#&gt; [13] fastmap_1.2.0      lattice_0.22-9     R6_2.6.1           generics_0.1.4    </span></span>
+<span><span class="co">#&gt; [17] knitr_1.51         desc_1.4.3         chk_0.10.0         bslib_0.12.0      </span></span>
+<span><span class="co">#&gt; [21] pillar_1.11.1      multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        </span></span>
+<span><span class="co">#&gt; [25] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       </span></span>
+<span><span class="co">#&gt; [29] otel_0.2.0         memoise_2.0.1      cli_3.6.6          withr_3.0.3       </span></span>
+<span><span class="co">#&gt; [33] pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39      grid_4.6.1        </span></span>
+<span><span class="co">#&gt; [37] lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5     glue_1.8.1        </span></span>
+<span><span class="co">#&gt; [41] ragg_1.5.2         deflist_0.2.0      rmarkdown_2.31     purrr_1.2.2       </span></span>
+<span><span class="co">#&gt; [45] tools_4.6.1        pkgconfig_2.0.3    htmltools_0.5.9</span></span></code></pre></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

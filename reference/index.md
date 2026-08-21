@@ -2,6 +2,8 @@
 
 ## All functions
 
+- [`align_by_id()`](https://bbuchsbaum.github.io/multidesign/reference/align_by_id.md)
+  : Align Hyperdesign Blocks by Their Entity Contract
 - [`as_multidesign()`](https://bbuchsbaum.github.io/multidesign/reference/as_multidesign.md)
   : Convert to a Multidesign Object
 - [`bind_multidesign()`](https://bbuchsbaum.github.io/multidesign/reference/bind_multidesign.md)
@@ -10,10 +12,17 @@
   : Get Block Indices from a Multiblock Object
 - [`block_indices(`*`<multiblock_list>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/block_indices.multiblock_list.md)
   : Extract Block Indices from Multiblock Object
+- [`cell_mask()`](https://bbuchsbaum.github.io/multidesign/reference/cell_mask.md)
+  [`has_cell_mask()`](https://bbuchsbaum.github.io/multidesign/reference/cell_mask.md)
+  : Query an Explicit Cell-Observation Mask
 - [`column_design()`](https://bbuchsbaum.github.io/multidesign/reference/column_design.md)
   : Extract Column Design Information
+- [`column_space()`](https://bbuchsbaum.github.io/multidesign/reference/column_space.md)
+  : Get the Column-Space Contract of a Hyperdesign
 - [`compile_design()`](https://bbuchsbaum.github.io/multidesign/reference/compile_design.md)
   : Compile a design specification against an fmri frame
+- [`correspondence()`](https://bbuchsbaum.github.io/multidesign/reference/correspondence.md)
+  : Query Row Correspondence in a Hyperdesign
 - [`cross_validate()`](https://bbuchsbaum.github.io/multidesign/reference/cross_validate.md)
   : Execute Cross-Validation Over Folds
 - [`cv_rows()`](https://bbuchsbaum.github.io/multidesign/reference/cv_rows.md)
@@ -26,10 +35,14 @@
   : Define a frame-native model design
 - [`df_to_hyperdesign()`](https://bbuchsbaum.github.io/multidesign/reference/df_to_hyperdesign.md)
   : Convert a Data Frame to a Hyperdesign Object
+- [`entity_id()`](https://bbuchsbaum.github.io/multidesign/reference/entity_id.md)
+  : Get the Entity ID Column of a Hyperdesign
 - [`fold_over()`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.md)
   : Generate Cross-validation Folds
 - [`fold_over(`*`<hyperdesign>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/fold_over.hyperdesign.md)
   : Create Cross-Validation Folds from a Hyperdesign Object
+- [`has_correspondence()`](https://bbuchsbaum.github.io/multidesign/reference/has_correspondence.md)
+  : Test Whether a Hyperdesign Declares Row Correspondence
 - [`hyperdesign()`](https://bbuchsbaum.github.io/multidesign/reference/hyperdesign.md)
   : Create a Hyperdesign Object
 - [`hyperdesign(`*`<list>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/hyperdesign.list.md)
@@ -64,6 +77,8 @@
   : Create a Group of Observations from Matrix or List Data
 - [`observation()`](https://bbuchsbaum.github.io/multidesign/reference/observation.md)
   : Create an Observation Object
+- [`print(`*`<aligned_hyperdesign>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/print.aligned_hyperdesign.md)
+  : Print an Aligned Hyperdesign
 - [`print(`*`<cv_result>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/print.cv_result.md)
   : Print Method for cv_result Objects
 - [`print(`*`<foldlist>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/print.foldlist.md)
@@ -104,6 +119,8 @@
   : Subset a Multiframe Object
 - [`summarize_by()`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.md)
   : Summarize Data Over Grouping Variables
+- [`summarize_by(`*`<hyperdesign>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.hyperdesign.md)
+  : Summarize Blocks of a Hyperdesign
 - [`summarize_by(`*`<multidesign>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.multidesign.md)
   : Summarize a Multidesign Object by Design Variables
 - [`summarize_by(`*`<multiframe>`*`)`](https://bbuchsbaum.github.io/multidesign/reference/summarize_by.multiframe.md)

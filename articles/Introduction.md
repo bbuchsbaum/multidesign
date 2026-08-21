@@ -1,21 +1,5 @@
 # Getting Started with multidesign
 
-``` r
-
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
-library(multidesign)
-library(tibble)
-library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
-```
-
 ## Why multidesign?
 
 In experimental research—particularly neuroimaging, psychophysics, and
@@ -480,6 +464,200 @@ hd
 #> 
 ```
 
+### When rows correspond across blocks
+
+The subjects above contain independent trials in the same order, but a
+hyperdesign can also store known entities that recur across blocks.
+Examples include landmarks measured in several configurations or tasks
+embedded by several models. The matrices remain entities by variables;
+the entity key is a design column, not an instruction to transpose the
+data.
+
+``` r
+
+configuration_a <- multidesign(
+  matrix(c(NA, 0, 1, 0, 0, 1), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("A", "B", "C")),
+  cells = matrix(
+    c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE),
+    ncol = 2,
+    byrow = TRUE
+  )
+)
+configuration_b <- multidesign(
+  matrix(c(1, 0, 0, 1, 1, 1), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("B", "C", "D"))
+)
+
+configurations <- hyperdesign(
+  list(a = configuration_a, b = configuration_b),
+  id = "landmark",
+  space = "common"
+)
+
+entity_id(configurations)
+#> [1] "landmark"
+column_space(configurations)
+#> [1] "common"
+
+corr <- correspondence(configurations)
+corr$global_ids
+#> [1] "A" "B" "C" "D"
+corr$row_map
+#> $a
+#> [1] 1 2 3
+#> 
+#> $b
+#> [1] 2 3 4
+corr$overlap$pair_n
+#>   a b
+#> a 3 2
+#> b 2 3
+
+aligned <- align_by_id(configurations)
+aligned$observed
+#>       a     b
+#> A  TRUE FALSE
+#> B  TRUE  TRUE
+#> C  TRUE  TRUE
+#> D FALSE  TRUE
+aligned$cells[, , "a"]
+#>       variable
+#> entity     1     2
+#>      A  TRUE  TRUE
+#>      B  TRUE FALSE
+#>      C FALSE FALSE
+#>      D FALSE FALSE
+aligned$x[, , "a"]
+#>       variable
+#> entity  1  2
+#>      A NA  0
+#>      B  1 NA
+#>      C NA NA
+#>      D NA NA
+
+correspondence(configurations, sort_ids = TRUE)$global_ids
+#> [1] "A" "B" "C" "D"
+
+stopifnot(all(vapply(seq_along(configurations), function(i) {
+  identical(corr$global_ids[corr$row_map[[i]]], corr$ids[[i]])
+}, logical(1))))
+```
+
+The global entity universe uses first-seen order, while each `row_map`
+maps local rows into it. Partial overlap is valid, and
+`corr$overlap$connected` reports whether the block-overlap graph is
+connected. A disconnected graph is data for a downstream solver to
+evaluate, not a construction error.
+
+Row presence and cell observation are deliberately separate. In the
+aligned result above, landmark D is absent from block `a`, landmark C is
+present in `a` but has an all-`FALSE` cell-mask row, and landmark A’s
+first coordinate is observed even though its value is `NA`. All three
+may display as `NA` in the aligned data array. Use `observed` to ask
+whether the row exists and `cells` to ask whether a coordinate was
+observed. `fill` controls only presentation; missing values in `x` never
+create a mask.
+
+Three related concepts remain separate:
+
+- `common_vars` describes design-column names found in every block:
+  shared schema.
+- `id` names the design-column values that link rows across blocks: a
+  join key.
+- `space = "common"` asserts that every matrix uses the same column
+  axes; `space = "block"` declares block-specific variables.
+
+[`as_multidesign()`](https://bbuchsbaum.github.io/multidesign/reference/as_multidesign.md)
+is a row-stack operation, not an ID join, and therefore refuses
+`space = "block"`.
+[`align_by_id()`](https://bbuchsbaum.github.io/multidesign/reference/align_by_id.md)
+is the deliberately separate join: it constructs
+entity-by-variable-by-block arrays for `space = "common"`, while
+preserving both row presence and cell observation. It does not estimate
+transformations. Similarly, `fold_over(configurations, landmark)` holds
+each entity out of every block in which it occurs. That is a general
+data split, not Bai–Bartoli/LBW smoothness cross-validation.
+
+#### Masks under data operations
+
+An explicit `cells` matrix must be logical, contain no `NA`, and match
+`x` exactly.
+[`cell_mask()`](https://bbuchsbaum.github.io/multidesign/reference/cell_mask.md)
+returns it, while
+[`has_cell_mask()`](https://bbuchsbaum.github.io/multidesign/reference/cell_mask.md)
+distinguishes a stored mask from the legacy unmasked case. Row and
+column subsets, folds, and variable selection slice the mask with the
+data. Row stacking preserves masks; if only some inputs are masked,
+unmasked inputs are promoted to all observed.
+
+Combining masked observations requires an explicit rule. For grouped
+summaries use `aggregate = "mean"` (or a scalar-returning function):
+
+``` r
+
+replicates <- multidesign(
+  matrix(c(1, 10, 3, 30, 8, 80), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("A", "A", "B")),
+  cells = matrix(
+    c(TRUE, FALSE, TRUE, TRUE, FALSE, FALSE),
+    ncol = 2,
+    byrow = TRUE
+  )
+)
+
+replicate_means <- hyperdesign(
+  list(sample = replicates),
+  id = "landmark",
+  space = "common",
+  aggregate = "mean"
+)
+xdata(replicate_means[[1]])
+#>   [,1] [,2]
+#> A    2   30
+#> B    8   80
+cell_mask(replicate_means[[1]])
+#>    [,1]  [,2]
+#> A  TRUE  TRUE
+#> B FALSE FALSE
+
+summarize_by(replicates, landmark, aggregate = "mean")
+#> 
+#> === Multidesign Object ===
+#> 
+#> Data Matrix: 
+#>    2 observations x 2 variables 
+#> 
+#> Observed Cells: 
+#>    2 of 4 explicitly observed
+#> 
+#> Design Variables: 
+#>   * landmark: 2 levels (A, B)
+#> 
+#> Column Metadata:
+#>   * .index: 2 levels (1, 2)
+#> 
+#> =======================
+#> 
+```
+
+For each output coordinate, the rule receives values whose cell masks
+are `TRUE`; a coordinate with no observed inputs remains masked.
+Duplicate entity keys remain an error when `aggregate` is omitted.
+Preprocessing and dimensional reduction reject partial masks because
+their transformation objects do not specify how a mask changes.
+All-`TRUE` masks can pass those boundaries, and a legacy `NULL` mask
+remains `NULL`.
+
+**Do not store features × observations in `x` to satisfy a left-action
+formula.** Generalized Procrustes solvers should transpose at their own
+API boundary. `multidesign` carries correspondence and column-space
+declarations; specialized packages remain responsible for
+transformations, fitting, gauges, and certificates. Cell-aware fitting
+likewise belongs to those consumer packages; `multidesign` only carries
+and reshapes the mask. Use `positional = TRUE` only for deliberately
+positional correspondence with equal row counts.
+
 ### Leave-one-subject-out cross-validation
 
 ``` r
@@ -667,18 +845,16 @@ sessionInfo()
 #> [1] dplyr_1.2.1            tibble_3.3.1           multidesign_0.1.0.9000
 #> 
 #> loaded via a namespace (and not attached):
-#>  [1] Matrix_1.7-5       gtable_0.3.6       jsonlite_2.0.0     crayon_1.5.3      
-#>  [5] compiler_4.6.1     tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2       
-#>  [9] geigen_2.4         jquerylib_0.1.4    systemfonts_1.3.2  scales_1.4.0      
-#> [13] textshaping_1.0.5  yaml_2.3.12        fastmap_1.2.0      lattice_0.22-9    
-#> [17] ggplot2_4.0.3      R6_2.6.1           generics_0.1.4     knitr_1.51        
-#> [21] chk_0.10.0         desc_1.4.3         bslib_0.12.0       pillar_1.11.1     
-#> [25] RColorBrewer_1.1-3 multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
-#> [29] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
-#> [33] S7_0.2.2           otel_0.2.0         memoise_2.0.1      cli_3.6.6         
-#> [37] withr_3.0.3        pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39     
-#> [41] grid_4.6.1         lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5    
-#> [45] glue_1.8.1         farver_2.1.2       ragg_1.5.2         deflist_0.2.0     
-#> [49] purrr_1.2.2        rmarkdown_2.31     albersdown_2.0.0   tools_4.6.1       
-#> [53] pkgconfig_2.0.3    htmltools_0.5.9
+#>  [1] Matrix_1.7-5       jsonlite_2.0.0     crayon_1.5.3       compiler_4.6.1    
+#>  [5] tidyselect_1.2.1   assertthat_0.2.1   tidyr_1.3.2        geigen_2.4        
+#>  [9] jquerylib_0.1.4    systemfonts_1.3.2  textshaping_1.0.5  yaml_2.3.12       
+#> [13] fastmap_1.2.0      lattice_0.22-9     R6_2.6.1           generics_0.1.4    
+#> [17] knitr_1.51         desc_1.4.3         chk_0.10.0         bslib_0.12.0      
+#> [21] pillar_1.11.1      multivarious_0.3.2 rlang_1.3.0        utf8_1.2.6        
+#> [25] cachem_1.1.0       xfun_0.60          fs_2.1.0           sass_0.4.10       
+#> [29] otel_0.2.0         memoise_2.0.1      cli_3.6.6          withr_3.0.3       
+#> [33] pkgdown_2.2.1      magrittr_2.0.5     digest_0.6.39      grid_4.6.1        
+#> [37] lifecycle_1.0.5    vctrs_0.7.3        evaluate_1.0.5     glue_1.8.1        
+#> [41] ragg_1.5.2         deflist_0.2.0      rmarkdown_2.31     purrr_1.2.2       
+#> [45] tools_4.6.1        pkgconfig_2.0.3    htmltools_0.5.9
 ```
