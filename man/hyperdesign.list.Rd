@@ -4,13 +4,33 @@
 \alias{hyperdesign.list}
 \title{Construct a Hyperdesign Object}
 \usage{
-\method{hyperdesign}{list}(x, block_names = NULL)
+\method{hyperdesign}{list}(
+  x,
+  block_names = NULL,
+  id = NULL,
+  space = NULL,
+  positional = FALSE,
+  aggregate = NULL
+)
 }
 \arguments{
 \item{x}{A list of multidesign instances. Each instance should represent a related block of data}
 
 \item{block_names}{Optional character vector of names for each block. If NULL, blocks will be
 automatically named as "block_1", "block_2", etc.}
+
+\item{id}{Optional length-one character string naming the design column whose
+values identify corresponding entities across blocks.}
+
+\item{space}{Optional column-space declaration: `"common"` when all blocks
+inhabit the same column space, or `"block"` when columns are block-specific.}
+
+\item{positional}{Logical; if `TRUE`, declare positional row correspondence.
+This requires `id = NULL` and equal row counts in every block.}
+
+\item{aggregate}{Optional duplicate-entity aggregation rule. `NULL` preserves
+the duplicate-key error. `"mean"` or a scalar-returning function collapses
+within-block replicates after requiring all non-key design fields to agree.}
 }
 \value{
 A hyperdesign object with the following components:
@@ -27,6 +47,15 @@ for modeling multi-block data, where you want to analyze multiple related matric
 * Multiple sessions or runs
 * Multiple data modalities (e.g., fMRI, EEG, behavioral)
 * Multiple response measures
+}
+\details{
+Rows may represent independent trials or entities that correspond across
+blocks. Supplying `id` declares the latter role by naming a design column to
+join on. It does not change the row-by-column storage orientation.
+`common_vars` records shared design-column names (schema); `id` records the
+values that link rows (correspondence). `space = "common"` requires equal
+column counts and identical column designs, while `space = "block"` allows
+block-specific columns.
 }
 \examples{
 # Create three multidesign objects (e.g., for three subjects)

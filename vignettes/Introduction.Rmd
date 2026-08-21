@@ -7,8 +7,10 @@ output:
     css: albers.css
     includes:
       in_header: albers-header.html
-vignette: |
-  %\VignetteIndexEntry{Getting Started with multidesign} %\VignetteEngine{knitr::rmarkdown} %\VignetteEncoding{UTF-8}
+vignette: >
+  %\VignetteIndexEntry{Getting Started with multidesign}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 params:
   family: ochre
   preset: homage
@@ -27,8 +29,7 @@ knitr::opts_chunk$set(
 set.seed(42)
 ```
 
-```{r setup}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
+```{r setup, include=FALSE}
 library(multidesign)
 library(tibble)
 library(dplyr)
@@ -270,6 +271,136 @@ hd <- hyperdesign(subjects, block_names = c("subj1", "subj2", "subj3"))
 hd
 ```
 
+## When rows correspond across blocks
+
+The subjects above contain independent trials in the same order, but a
+hyperdesign can also store known entities that recur across blocks. Examples
+include landmarks measured in several configurations or tasks embedded by
+several models. The matrices remain entities by variables; the entity key is a
+design column, not an instruction to transpose the data.
+
+```{r entity-correspondence}
+configuration_a <- multidesign(
+  matrix(c(NA, 0, 1, 0, 0, 1), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("A", "B", "C")),
+  cells = matrix(
+    c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE),
+    ncol = 2,
+    byrow = TRUE
+  )
+)
+configuration_b <- multidesign(
+  matrix(c(1, 0, 0, 1, 1, 1), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("B", "C", "D"))
+)
+
+configurations <- hyperdesign(
+  list(a = configuration_a, b = configuration_b),
+  id = "landmark",
+  space = "common"
+)
+
+entity_id(configurations)
+column_space(configurations)
+
+corr <- correspondence(configurations)
+corr$global_ids
+corr$row_map
+corr$overlap$pair_n
+
+aligned <- align_by_id(configurations)
+aligned$observed
+aligned$cells[, , "a"]
+aligned$x[, , "a"]
+
+correspondence(configurations, sort_ids = TRUE)$global_ids
+
+stopifnot(all(vapply(seq_along(configurations), function(i) {
+  identical(corr$global_ids[corr$row_map[[i]]], corr$ids[[i]])
+}, logical(1))))
+```
+
+The global entity universe uses first-seen order, while each `row_map` maps
+local rows into it. Partial overlap is valid, and
+`corr$overlap$connected` reports whether the block-overlap graph is connected.
+A disconnected graph is data for a downstream solver to evaluate, not a
+construction error.
+
+Row presence and cell observation are deliberately separate. In the aligned
+result above, landmark D is absent from block `a`, landmark C is present in
+`a` but has an all-`FALSE` cell-mask row, and landmark A's first coordinate is
+observed even though its value is `NA`. All three may display as `NA` in the
+aligned data array. Use `observed` to ask whether the row exists and `cells` to
+ask whether a coordinate was observed. `fill` controls only presentation;
+missing values in `x` never create a mask.
+
+Three related concepts remain separate:
+
+- `common_vars` describes design-column names found in every block: shared
+  schema.
+- `id` names the design-column values that link rows across blocks: a join key.
+- `space = "common"` asserts that every matrix uses the same column axes;
+  `space = "block"` declares block-specific variables.
+
+`as_multidesign()` is a row-stack operation, not an ID join, and therefore
+refuses `space = "block"`. `align_by_id()` is the deliberately separate join:
+it constructs entity-by-variable-by-block arrays for `space = "common"`, while
+preserving both row presence and cell observation. It does not estimate
+transformations. Similarly,
+`fold_over(configurations, landmark)` holds each entity out of every block in
+which it occurs. That is a general data split, not Bai–Bartoli/LBW smoothness
+cross-validation.
+
+### Masks under data operations
+
+An explicit `cells` matrix must be logical, contain no `NA`, and match `x`
+exactly. `cell_mask()` returns it, while `has_cell_mask()` distinguishes a
+stored mask from the legacy unmasked case. Row and column subsets, folds, and
+variable selection slice the mask with the data. Row stacking preserves masks;
+if only some inputs are masked, unmasked inputs are promoted to all observed.
+
+Combining masked observations requires an explicit rule. For grouped summaries
+use `aggregate = "mean"` (or a scalar-returning function):
+
+```{r masked-aggregation}
+replicates <- multidesign(
+  matrix(c(1, 10, 3, 30, 8, 80), ncol = 2, byrow = TRUE),
+  tibble(landmark = c("A", "A", "B")),
+  cells = matrix(
+    c(TRUE, FALSE, TRUE, TRUE, FALSE, FALSE),
+    ncol = 2,
+    byrow = TRUE
+  )
+)
+
+replicate_means <- hyperdesign(
+  list(sample = replicates),
+  id = "landmark",
+  space = "common",
+  aggregate = "mean"
+)
+xdata(replicate_means[[1]])
+cell_mask(replicate_means[[1]])
+
+summarize_by(replicates, landmark, aggregate = "mean")
+```
+
+For each output coordinate, the rule receives values whose cell masks are
+`TRUE`; a coordinate with no observed inputs remains masked. Duplicate entity
+keys remain an error when `aggregate` is omitted. Preprocessing and dimensional
+reduction reject partial masks because their transformation objects do not
+specify how a mask changes. All-`TRUE` masks can pass those boundaries, and a
+legacy `NULL` mask remains `NULL`.
+
+**Do not store features × observations in `x` to satisfy a left-action
+formula.** Generalized Procrustes solvers should transpose at their own API
+boundary. `multidesign` carries correspondence and column-space declarations;
+specialized packages remain responsible for transformations, fitting, gauges,
+and certificates. Cell-aware fitting likewise belongs to those consumer
+packages; `multidesign` only carries and reshapes the mask. Use
+`positional = TRUE` only for deliberately positional correspondence with equal
+row counts.
+
 ## Leave-one-subject-out cross-validation
 
 ```{r}
@@ -337,8 +468,7 @@ table(design(mds_all)$subject)
 
 # Next steps
 
-- See `vignette("class_overview")
-` for detailed documentation of each class
+- See `vignette("class_overview")` for detailed documentation of each class
 - Explore the function reference for methods like `bind_multidesign()`, `df_to_hyperdesign()`, and `reduce()`
 - Check out the package website for additional examples
 

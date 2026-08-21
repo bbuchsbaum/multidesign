@@ -7,8 +7,10 @@ output:
     css: albers.css
     includes:
       in_header: albers-header.html
-vignette: |
-  %\VignetteIndexEntry{Class Reference and Design Patterns} %\VignetteEngine{knitr::rmarkdown} %\VignetteEncoding{UTF-8}
+vignette: >
+  %\VignetteIndexEntry{Class Reference and Design Patterns}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 params:
   family: ochre
   preset: homage
@@ -20,7 +22,6 @@ resource_files:
 ---
 
 ```{r setup, include=FALSE}
-if (requireNamespace("ggplot2", quietly = TRUE) && requireNamespace("albersdown", quietly = TRUE)) ggplot2::theme_set(albersdown::theme_albers(family = params$family, preset = params$preset))
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 set.seed(123)
 library(multidesign)
@@ -88,6 +89,7 @@ A `multidesign` is the fundamental class in the package. It binds together:
 - **Data matrix** (`x`): rows are observations, columns are variables
 - **Row design** (`design`): a tibble describing each observation
 - **Column design** (`column_design`): a tibble describing each variable (optional)
+- **Cell mask** (`cells`): an optional logical matrix recording observed entries
 
 ## When to use
 
@@ -131,6 +133,7 @@ md
 | `xdata(x)` | Extract the data matrix |
 | `design(x)` | Extract row design (without internal `.index`) |
 | `column_design(x)` | Extract column design |
+| `cell_mask(x)` / `has_cell_mask(x)` | Query the optional cell-observation mask |
 | `subset(x, expr)` | Filter rows by design expression |
 | `split(x, ...)` | Split into list by design variables |
 | `select_variables(x, ...)` | Filter columns by column_design expression |
@@ -208,7 +211,7 @@ The `reduce()` function requires the `multivarious` package. When called, it ret
 
 ## Purpose
 
-A `hyperdesign` manages multiple `multidesign` objects (called "blocks") that share common design variables. This is the natural structure for multi-subject, multi-session, or multi-modal experiments.
+A `hyperdesign` manages multiple `multidesign` objects (called "blocks") that share common design variables. This is the natural structure for multi-subject, multi-session, or multi-modal experiments. Optional `id` and `space` contracts also support blocks whose rows are corresponding entities in a shared column space.
 
 ## When to use
 
@@ -256,8 +259,12 @@ hd
 | `xdata(x)` / `xdata(x, block=i)` | Extract data (all blocks or specific block) |
 | `design(x)` / `design(x, block=i)` | Extract design (all blocks or specific block) |
 | `column_design(x)` | Extract column design |
+| `entity_id(x)` / `column_space(x)` | Query the optional entity and space contracts |
+| `correspondence(x)` | Map local rows to the global entity universe |
+| `align_by_id(x)` | Join common-space blocks into aligned arrays |
 | `subset(x, expr)` | Filter all blocks by expression |
 | `select_variables(x, ...)` | Filter columns in all blocks |
+| `summarize_by(x, ..., aggregate=)` | Summarize every block; masked inputs need an explicit rule |
 | `fold_over(x)` | Leave-one-block-out folds |
 | `fold_over(x, var)` | Within-block folds by variable |
 | `cv_rows(x, rows)` | Create synchronized row-index folds |
@@ -301,6 +308,14 @@ md_collapsed <- as_multidesign(hd, .id = "subject")
 nrow(xdata(md_collapsed))
 table(design(md_collapsed)$subject)
 ```
+
+For corresponding entities, construct with `id =` and `space = "common"`,
+then use `align_by_id()` when an explicit join is needed. This is distinct from
+`as_multidesign()`, which always row-stacks. The aligned result contains an
+entity-by-variable-by-block data array, a same-shaped cell mask, and a separate
+entity-by-block row-presence matrix. See the [Getting Started
+vignette](Introduction.html#when-rows-correspond-across-blocks) for a runnable
+partial-overlap example.
 
 ## Alternative construction: from data frame
 
@@ -607,14 +622,17 @@ design(md_flat)
 | `xdata()` | ✓ | ✓ | ✓ | - |
 | `design()` | ✓ | ✓ | ✓ | - |
 | `column_design()` | ✓ | ✓ | - | - |
+| `cell_mask()` | ✓ | - | - | - |
 | `subset()` | ✓ | ✓ | ✓ | - |
 | `split()` | ✓ | - | ✓ | - |
 | `select_variables()` | ✓ | ✓ | - | - |
-| `summarize_by()` | ✓ | - | ✓ | - |
+| `summarize_by()` | ✓ | ✓ | ✓ | - |
 | `fold_over()` | ✓ | ✓ | ✓ | - |
 | `cv_rows()` | ✓ | ✓ | ✓ | - |
 | `split_indices()` | ✓ | - | ✓ | - |
 | `block_indices()` | - | ✓ | - | ✓ |
+| `correspondence()` | - | ✓ | - | - |
+| `align_by_id()` | - | ✓ | - | - |
 | `is_cstacked()` | - | - | - | ✓ |
 | `is_rstacked()` | - | - | - | ✓ |
 

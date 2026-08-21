@@ -38,10 +38,11 @@ observation <- function(x, i) UseMethod("observation")
 #' data (observations) and metadata about experimental conditions (design variables).
 #'
 #' @details
-#' A multidesign object consists of three main components:
+#' A multidesign object consists of three core components and an optional mask:
 #' * A data matrix where rows represent observations and columns represent variables
 #' * A design data frame containing experimental factors and conditions for each observation
 #' * Optional column metadata describing properties of each variable
+#' * An optional logical cell-observation mask with the same dimensions as the data matrix
 #'
 #' @param x The multivariate data (a matrix, a list, or other data container)
 #' @param y A design matrix or data frame with same number of rows/elements as x
@@ -61,6 +62,13 @@ observation <- function(x, i) UseMethod("observation")
 #' 
 #' # Create multidesign object
 #' mds <- multidesign(X, Y)
+#'
+#' # Missing values do not imply missing cells; store a mask explicitly
+#' cells <- matrix(TRUE, nrow(X), ncol(X))
+#' cells[1, 1] <- FALSE
+#' masked <- multidesign(X, Y, cells = cells)
+#' has_cell_mask(masked)
+#' cell_mask(masked)[1, 1]
 #' 
 #' # Split by condition
 #' sdes <- split(mds, condition)
@@ -71,6 +79,33 @@ observation <- function(x, i) UseMethod("observation")
 #'   \code{\link{multiframe}} for an alternative implementation
 #' @export
 multidesign <- function(x, y, ...) UseMethod("multidesign")
+
+#' Query an Explicit Cell-Observation Mask
+#'
+#' A cell mask records which entries of a multidesign data matrix are observed.
+#' It is independent of the values stored in `x`: missing values in `x` never
+#' create a mask, and an all-`FALSE` mask row remains a design row.
+#'
+#' @param x A multidesign object.
+#' @param ... Additional arguments passed to methods.
+#' @return `cell_mask()` returns a logical matrix or `NULL` when no explicit
+#'   mask is stored. `has_cell_mask()` returns a length-one logical value.
+#' @examples
+#' md <- multidesign(
+#'   matrix(c(NA, 2, 3, 4), nrow = 2),
+#'   data.frame(group = c("a", "b")),
+#'   cells = matrix(c(TRUE, FALSE, TRUE, TRUE), nrow = 2)
+#' )
+#' has_cell_mask(md)
+#' cell_mask(md)
+#' # The observed NA remains an ordinary stored value.
+#' cell_mask(md)[1, 1]
+#' @export
+cell_mask <- function(x, ...) UseMethod("cell_mask")
+
+#' @rdname cell_mask
+#' @export
+has_cell_mask <- function(x, ...) UseMethod("has_cell_mask")
 
 #' Create a Hyperdesign Object
 #'
@@ -87,8 +122,25 @@ multidesign <- function(x, y, ...) UseMethod("multidesign")
 #' * Multiple data modalities (e.g., fMRI, EEG, behavioral)
 #' * Multiple response measures
 #'
+#' Rows retain the usual multidesign orientation: observations or corresponding
+#' entities are rows, and measured variables are columns. `id` gives a shared
+#' design column join semantics across blocks; it does not transpose the stored
+#' matrices. `common_vars` describes shared design-column names, whereas `id`
+#' identifies shared row values. `space = "common"` additionally asserts that
+#' block columns represent the same axes; `space = "block"` declares that they
+#' are block-specific.
+#'
 #' @param x A list of multidesign objects. Each instance should represent a related block of data
 #' @param block_names Optional character vector of names for each block
+#' @param id Optional length-one character string naming the design column whose
+#'   values identify corresponding entities across blocks.
+#' @param space Optional column-space declaration: `"common"` when all blocks
+#'   inhabit the same column space, or `"block"` when columns are block-specific.
+#' @param positional Logical; if `TRUE`, declare positional row correspondence.
+#'   This requires `id = NULL` and equal row counts in every block.
+#' @param aggregate Optional duplicate-entity aggregation rule. `NULL` keeps
+#'   duplicate IDs as an error; use `"mean"` or a scalar-returning function to
+#'   aggregate within-block replicates explicitly.
 #'
 #' @return A hyperdesign object with the following components:
 #'   \item{blocks}{List of multidesign objects}
@@ -117,12 +169,25 @@ multidesign <- function(x, y, ...) UseMethod("multidesign")
 #'   block_names = c("subject1", "subject2", "subject3")
 #' )
 #'
+#' # Duplicate entity IDs require an explicit aggregation rule
+#' repeated <- multidesign(
+#'   matrix(c(1, 2, 3, 4), ncol = 2, byrow = TRUE),
+#'   data.frame(entity = c("A", "A"))
+#' )
+#' aggregated <- hyperdesign(
+#'   list(sample = repeated), id = "entity", space = "common",
+#'   aggregate = "mean"
+#' )
+#'
 #' @seealso 
 #'   \code{\link{df_to_hyperdesign}} for creating hyperdesign objects from data frames,
 #'   \code{\link{multidesign}} for the underlying multidesign structure,
 #'   \code{\link{multiblock}} for another multi-block data structure
 #' @export
-hyperdesign <- function(x, block_names = NULL) UseMethod("hyperdesign")
+hyperdesign <- function(x, block_names = NULL, id = NULL, space = NULL,
+                        positional = FALSE, aggregate = NULL) {
+  UseMethod("hyperdesign")
+}
 
 
 

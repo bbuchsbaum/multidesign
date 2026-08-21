@@ -13,13 +13,18 @@
 #' * A data matrix where rows represent observations and columns represent variables
 #' * A design data frame containing experimental factors and conditions for each observation
 #' * Optional column metadata describing properties of each variable
+#' * An optional logical cell-observation mask aligned exactly with the data matrix
 #'
 #' The object maintains the relationship between these components while providing methods
-#' for manipulation, subsetting, and analysis.
+#' for manipulation, subsetting, and analysis. A value of `NA` in `x` is
+#' ordinary data unless the corresponding `cells` entry is explicitly `FALSE`.
 #'
 #' @param x A numeric matrix where rows are observations and columns are variables
 #' @param y A data frame containing design variables for each observation (must have same number of rows as x)
 #' @param column_design Optional data frame containing metadata for columns in x (must have same number of rows as ncol(x))
+#' @param cells Optional logical matrix with dimensions identical to `x` and no
+#'   missing values. `NULL` means no explicit mask; it is never inferred from
+#'   missing values in `x`.
 #'
 #' @return A multidesign object with components:
 #'   \item{x}{The input data matrix}
@@ -45,6 +50,12 @@
 #' # Create multidesign object
 #' mds <- multidesign(X, Y, col_info)
 #'
+#' # Store cell observation independently of data values
+#' mask <- matrix(TRUE, nrow(X), ncol(X))
+#' mask[1, 1] <- FALSE
+#' masked_mds <- multidesign(X, Y, col_info, cells = mask)
+#' cell_mask(masked_mds)[1:2, 1:2]
+#'
 #' @family multidesign functions
 #' @seealso
 #'   \code{\link{reduce.multidesign}} for dimensionality reduction,
@@ -52,7 +63,7 @@
 #' @importFrom dplyr mutate rowwise n
 #' @export
 #' @rdname multidesign
-multidesign.matrix <- function(x, y, column_design=NULL, ...) {
+multidesign.matrix <- function(x, y, column_design = NULL, cells = NULL, ...) {
   chk::chk_equal(nrow(x), nrow(y))
   chk::chk_s3_class(y, "data.frame")
   y <- tibble::as_tibble(y)
@@ -66,12 +77,39 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
     column_design <- tibble::tibble(.index = seq_len(ncol(x)))
   }
 
-  structure(list(
-    x=x,
-    design=y,
-    column_design=column_design
-  ),
-  class="multidesign")
+  if (!is.null(cells)) {
+    if (!is.matrix(cells) || !is.logical(cells)) {
+      stop("`cells` must be NULL or a logical matrix.", call. = FALSE)
+    }
+    if (!identical(dim(cells), dim(x))) {
+      stop("`cells` must have dimensions identical to `x`.", call. = FALSE)
+    }
+    if (anyNA(cells)) {
+      stop("`cells` cannot contain NA values.", call. = FALSE)
+    }
+  }
+
+  out <- list(
+    x = x,
+    design = y,
+    column_design = column_design
+  )
+  if (!is.null(cells)) {
+    out$cells <- cells
+  }
+  structure(out, class = "multidesign")
+}
+
+#' @rdname cell_mask
+#' @export
+cell_mask.multidesign <- function(x, ...) {
+  x$cells
+}
+
+#' @rdname cell_mask
+#' @export
+has_cell_mask.multidesign <- function(x, ...) {
+  !is.null(cell_mask(x))
 }
 
 #' Reduce Dimensionality of a Multidesign Object
@@ -80,6 +118,11 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
 #' Performs dimensionality reduction on the data matrix of a multidesign object while preserving
 #' the design structure. By default uses PCA, but supports any reduction method that returns
 #' a projector object.
+#'
+#' A partial cell mask is rejected because a projector does not declare how
+#' cell observation transforms into the reduced coordinates. An all-`TRUE`
+#' explicit mask is retained with the reduced dimensions; `NULL` remains
+#' `NULL`.
 #'
 #' @param x A multidesign object
 #' @param nc Number of components to retain in the reduction
@@ -105,16 +148,32 @@ multidesign.matrix <- function(x, y, column_design=NULL, ...) {
 #' @seealso \code{\link{multidesign}}
 #' @export
 reduce.multidesign <- function(x, nc=2, ..., rfun=function(x) multivarious::pca(x$x, ncomp=nc,...)) {
+  input_mask <- cell_mask(x)
+  if (!is.null(input_mask) && !all(input_mask)) {
+    stop(
+      "`reduce()` cannot transform partial cell masks because the projector has no declared mask transformation.",
+      call. = FALSE
+    )
+  }
+
   projector <- rfun(x)
   chk::chk_s3_class(projector, "projector")
   rx <- multivarious::project(projector, x$x)
-  structure(list(
-    x=rx,
-    design=x$design,
-    column_design=x$column_design,
-    projector=projector
-  ),
-  class=c("reduced_multidesign", "multidesign"))
+  column_design_out <- if (nrow(x$column_design) == ncol(rx)) {
+    x$column_design
+  } else {
+    tibble::tibble(.index = seq_len(ncol(rx)))
+  }
+  out <- list(
+    x = rx,
+    design = x$design,
+    column_design = column_design_out,
+    projector = projector
+  )
+  if (!is.null(input_mask)) {
+    out$cells <- matrix(TRUE, nrow = nrow(rx), ncol = ncol(rx))
+  }
+  structure(out, class = c("reduced_multidesign", "multidesign"))
 }
 
 #' Subset a Multidesign Object
@@ -153,7 +212,13 @@ subset.multidesign <- function(x, fexpr, ...) {
   } else {
     ind <- des2$.index
     des2$.index <- NULL
-    multidesign(x$x[ind, , drop=FALSE], des2, x$column_design)
+    mask <- cell_mask(x)
+    multidesign(
+      x$x[ind, , drop = FALSE],
+      des2,
+      x$column_design,
+      cells = if (is.null(mask)) NULL else mask[ind, , drop = FALSE]
+    )
   }
 }
 
@@ -197,7 +262,14 @@ split.multidesign <- function(x, f, drop=FALSE, ...) {
   lapply(seq_len(nrow(ret)), function(i) {
     d <- ret$data[[i]]
     d$.index <- NULL
-    multidesign.matrix(xl[[i]], d, x$column_design)
+    mask <- cell_mask(x)
+    rows <- ret$data[[i]]$.index
+    multidesign.matrix(
+      xl[[i]],
+      d,
+      x$column_design,
+      cells = if (is.null(mask)) NULL else mask[rows, , drop = FALSE]
+    )
   })
 }
 
@@ -267,6 +339,8 @@ split_indices.multidesign <- function(x, ..., collapse=FALSE) {
 #' @param ... Unquoted names of variables to group by
 #' @param sfun Summary function to apply (default is colMeans)
 #' @param extract_data Logical; whether to extract raw data instead of computing summary
+#' @param aggregate Optional explicit cellwise aggregation rule. Required when
+#'   `x` has a cell mask; accepts `"mean"` or a scalar-returning function.
 #'
 #' @return A new multidesign object containing:
 #'   \item{x}{Matrix of summary statistics}
@@ -287,17 +361,52 @@ split_indices.multidesign <- function(x, ..., collapse=FALSE) {
 #' # Get means by condition and block
 #' means_by_both <- summarize_by(mds, condition, block)
 #'
+#' # Masked summaries require an explicit coordinate-wise rule
+#' mask <- matrix(TRUE, nrow(X), ncol(X))
+#' mask[1:10, 1] <- FALSE
+#' masked <- multidesign(X, Y, cells = mask)
+#' masked_means <- summarize_by(masked, condition, aggregate = "mean")
+#' cell_mask(masked_means)
+#'
 #' @family multidesign functions
 #' @seealso \code{\link{split.multidesign}}
 #' @export
-summarize_by.multidesign <- function(x, ..., sfun=colMeans, extract_data=FALSE) {
+summarize_by.multidesign <- function(x, ..., sfun = colMeans,
+                                     extract_data = FALSE,
+                                     aggregate = NULL) {
   #nested <- split(x, ...)
   nest.by <- rlang::quos(...)
   ret <- x$design %>% nest_by(!!!nest.by)
 
-  dsum <- do.call(rbind, ret$data %>% purrr::map( ~ sfun(x$x[.x[[".index"]], , drop=FALSE])))
+  mask <- cell_mask(x)
+  if (!is.null(mask) && is.null(aggregate)) {
+    stop(
+      "Masked `summarize_by()` requires an explicit `aggregate` rule.",
+      call. = FALSE
+    )
+  }
+
+  if (is.null(aggregate)) {
+    dsum <- do.call(rbind, ret$data %>% purrr::map(
+      ~ sfun(x$x[.x[[".index"]], , drop = FALSE])
+    ))
+    cells_out <- NULL
+  } else {
+    row_groups <- lapply(ret$data, function(group) as.integer(group$.index))
+    summarized <- .aggregate_matrix_groups(
+      x$x,
+      cells = mask,
+      row_groups = row_groups,
+      aggregate = aggregate,
+      labels = paste0("group ", seq_along(row_groups)),
+      context = "summary",
+      preserve_singletons = FALSE
+    )
+    dsum <- summarized$x
+    cells_out <- summarized$cells
+  }
   ret2 <- ret %>% select(-data)
-  multidesign(dsum, ret2, x$column_design)
+  multidesign(dsum, ret2, x$column_design, cells = cells_out)
 }
 
 #' @rdname xdata
@@ -330,7 +439,13 @@ select_variables.multidesign <- function(x, ...) {
   }
   col_idx <- cd_filtered$.col_pos
   cd_filtered$.col_pos <- NULL
-  multidesign(x$x[, col_idx, drop = FALSE], x$design, cd_filtered)
+  mask <- cell_mask(x)
+  multidesign(
+    x$x[, col_idx, drop = FALSE],
+    x$design,
+    cd_filtered,
+    cells = if (is.null(mask)) NULL else mask[, col_idx, drop = FALSE]
+  )
 }
 
 #' @rdname fold_over
@@ -365,6 +480,12 @@ print.multidesign <- function(x, ...) {
   # Data matrix dimensions
   cat("\nData Matrix: \n")
   cat("  ", nrow(x$x), "observations x", ncol(x$x), "variables \n")
+
+  if (has_cell_mask(x)) {
+    mask <- cell_mask(x)
+    cat("\nObserved Cells: \n")
+    cat("  ", sum(mask), "of", length(mask), "explicitly observed\n")
+  }
 
   # Design variables
   cat("\nDesign Variables: \n")
@@ -429,6 +550,12 @@ print.reduced_multidesign <- function(x, ...) {
   # Data dimensions
   cat(crayon::bold("\nData Matrix:"), "\n")
   cat("  ", crayon::green(paste0(nrow(x$x), " observations x ", ncol(x$x), " components")), "\n")
+
+  if (has_cell_mask(x)) {
+    mask <- cell_mask(x)
+    cat(crayon::bold("\nObserved Cells:"), "\n")
+    cat("  ", sum(mask), "of", length(mask), "explicitly observed\n")
+  }
 
   # Design variables
   cat(crayon::bold("\nDesign Variables:"), "\n")

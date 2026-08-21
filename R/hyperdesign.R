@@ -30,6 +30,13 @@ block_index_mat <- function(x, byrow=FALSE) {
 #' @param design_vars Character vector specifying the names of design variables (e.g., conditions, factors)
 #' @param x_vars Character vector specifying the names of response variables to extract
 #' @param split_var Character string naming the variable to split the data on (e.g., "subject" or "session")
+#' @param id Optional entity ID column forwarded to [hyperdesign()]. The column
+#'   must be included in `design_vars`.
+#' @param space Optional column-space declaration forwarded to [hyperdesign()].
+#' @param positional Logical positional-correspondence declaration forwarded to
+#'   [hyperdesign()].
+#' @param aggregate Optional duplicate-entity aggregation rule forwarded to
+#'   [hyperdesign()].
 #'
 #' @return A hyperdesign object containing multiple multidesign objects, one for each unique value in split_var
 #' @seealso
@@ -59,7 +66,9 @@ block_index_mat <- function(x, byrow=FALSE) {
 #'   x_vars = as.character(1:3),
 #'   split_var = "subject"
 #' )
-df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
+df_to_hyperdesign <- function(data, design_vars, x_vars, split_var, id = NULL,
+                              space = NULL, positional = FALSE,
+                              aggregate = NULL) {
   # Arrange the data by the splitting variable
   data <- data %>% arrange(!!rlang::sym(split_var))
 
@@ -79,7 +88,14 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
   })
 
   # Convert the list of multidesign objects into a hyperdesign
-  hyperdesign(multidesigns, as.character(nested_data[[1]]))
+  hyperdesign(
+    multidesigns,
+    block_names = as.character(nested_data[[1]]),
+    id = id,
+    space = space,
+    positional = positional,
+    aggregate = aggregate
+  )
 }
 
 
@@ -97,6 +113,24 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #' @param x A list of multidesign instances. Each instance should represent a related block of data
 #' @param block_names Optional character vector of names for each block. If NULL, blocks will be
 #'   automatically named as "block_1", "block_2", etc.
+#' @param id Optional length-one character string naming the design column whose
+#'   values identify corresponding entities across blocks.
+#' @param space Optional column-space declaration: `"common"` when all blocks
+#'   inhabit the same column space, or `"block"` when columns are block-specific.
+#' @param positional Logical; if `TRUE`, declare positional row correspondence.
+#'   This requires `id = NULL` and equal row counts in every block.
+#' @param aggregate Optional duplicate-entity aggregation rule. `NULL` preserves
+#'   the duplicate-key error. `"mean"` or a scalar-returning function collapses
+#'   within-block replicates after requiring all non-key design fields to agree.
+#'
+#' @details
+#' Rows may represent independent trials or entities that correspond across
+#' blocks. Supplying `id` declares the latter role by naming a design column to
+#' join on. It does not change the row-by-column storage orientation.
+#' `common_vars` records shared design-column names (schema); `id` records the
+#' values that link rows (correspondence). `space = "common"` requires equal
+#' column counts and identical column designs, while `space = "block"` allows
+#' block-specific columns.
 #'
 #' @return A hyperdesign object with the following components:
 #'   \item{blocks}{List of multidesign objects}
@@ -133,19 +167,54 @@ df_to_hyperdesign <- function(data, design_vars, x_vars, split_var) {
 #'   list(d1, d2, d3),
 #'   block_names = c("subject1", "subject2", "subject3")
 #' )
-hyperdesign.list <- function(x, block_names=NULL) {
-  chk::chk_true(all(sapply(x, function(d) inherits(d, "multidesign"))))
-
-  bind_col <- block_index_mat(x, byrow=FALSE)
-  bind_row <- block_index_mat(x, byrow=TRUE)
+hyperdesign.list <- function(x, block_names = NULL, id = NULL, space = NULL,
+                             positional = FALSE, aggregate = NULL) {
+  if (length(x) == 0L) {
+    stop("`x` must contain at least one multidesign block.", call. = FALSE)
+  }
+  if (!all(vapply(x, inherits, logical(1), what = "multidesign"))) {
+    stop("Every element of `x` must inherit from `multidesign`.", call. = FALSE)
+  }
 
   if (!is.null(block_names)) {
-    chk::chk_true(length(block_names) == length(x))
-    names(x) <- block_names
+    if (length(block_names) != length(x)) {
+      stop("`block_names` must have one value per block.", call. = FALSE)
+    }
+    names(x) <- as.character(block_names)
   } else if (is.null(names(x))) {
     block_names <- paste0("block_", seq_along(x))
     names(x) <- block_names
+  } else if (!is.null(id) || !is.null(space) || isTRUE(positional)) {
+    # Contracted objects expose named maps, so retain existing valid names in
+    # the block metadata as well as on the list itself.
+    block_names <- names(x)
   }
+
+  if (!is.null(aggregate)) {
+    if (is.null(id)) {
+      stop("`aggregate` requires an explicit entity `id`.", call. = FALSE)
+    }
+    .resolve_cell_aggregate(aggregate)
+    x <- lapply(seq_along(x), function(i) {
+      .aggregate_duplicate_entity_block(
+        x[[i]],
+        id = id,
+        aggregate = aggregate,
+        block_name = names(x)[[i]]
+      )
+    })
+    names(x) <- if (is.null(block_names)) names(x) else block_names
+  }
+
+  contract <- .validate_hyperdesign_contract(
+    x,
+    id = id,
+    space = space,
+    positional = positional
+  )
+
+  bind_col <- block_index_mat(x, byrow = FALSE)
+  bind_row <- block_index_mat(x, byrow = TRUE)
 
   hdes <- lapply(seq_along(x), function(i) {
     tibble::tibble(block=i, block_name=block_names[i],
@@ -157,10 +226,77 @@ hyperdesign.list <- function(x, block_names=NULL) {
   cvars <- lapply(x, function(z) setdiff(names(z$design), c(".index", ".orig_index")))
   cvars <- Reduce(intersect, cvars)
 
-  structure(x,
-            hdes=hdes,
-            common_vars=cvars,
-            class="hyperdesign")
+  out <- structure(
+    x,
+    hdes = hdes,
+    common_vars = cvars,
+    class = "hyperdesign"
+  )
+
+  if (!is.null(contract$id)) {
+    attr(out, "entity_id") <- contract$id
+    attr(out, "correspondence_assumption") <- "explicit_ids"
+  } else if (isTRUE(contract$positional)) {
+    attr(out, "correspondence_assumption") <- "positional"
+  }
+  if (!is.null(contract$space)) {
+    attr(out, "column_space") <- contract$space
+  }
+
+  out
+}
+
+#' Summarize Blocks of a Hyperdesign
+#'
+#' Applies [summarize_by()] to each block. Explicit entity correspondence is
+#' preserved only when the entity key remains among the grouping variables.
+#' Otherwise the result is intentionally uncontracted with respect to rows.
+#' Masked blocks require an explicit coordinate-wise `aggregate` rule.
+#'
+#' @param x A hyperdesign object.
+#' @param ... Unquoted grouping variables.
+#' @param sfun Legacy matrix summary function used for unmasked blocks.
+#' @param extract_data Logical legacy argument forwarded to block methods.
+#' @param aggregate Explicit cellwise aggregation rule required for masked blocks.
+#' @return A summarized hyperdesign.
+#' @examples
+#' md <- multidesign(
+#'   matrix(1:8, nrow = 4),
+#'   data.frame(entity = c("A", "A", "B", "B")),
+#'   cells = matrix(c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, FALSE),
+#'                  nrow = 4)
+#' )
+#' hd <- hyperdesign(list(one = md))
+#' out <- summarize_by(hd, entity, aggregate = "mean")
+#' cell_mask(out[[1]])
+#' @method summarize_by hyperdesign
+#' @export
+summarize_by.hyperdesign <- function(x, ..., sfun = colMeans,
+                                     extract_data = FALSE,
+                                     aggregate = NULL) {
+  groups <- rlang::enquos(...)
+  group_names <- vapply(groups, rlang::quo_name, character(1))
+  out <- lapply(x, function(block) {
+    summarize_by(
+      block,
+      !!!groups,
+      sfun = sfun,
+      extract_data = extract_data,
+      aggregate = aggregate
+    )
+  })
+  names(out) <- names(x)
+
+  id <- entity_id(x)
+  retained_id <- if (!is.null(id) && id %in% group_names) id else NULL
+
+  hyperdesign(
+    out,
+    block_names = names(out),
+    id = retained_id,
+    space = column_space(x),
+    positional = FALSE
+  )
 }
 
 #' @export
@@ -192,43 +328,70 @@ block_indices.hyperdesign <- function(x, i, byrow=FALSE, ...) {
 #'
 #' Method to initialize transformations (e.g., scaling, centering) for hyperdesign objects.
 #' Each block in the hyperdesign gets its own transformation object.
+#' Hyperdesigns with partial cell masks are rejected because preprocessors do
+#' not declare how masks transform. All-`TRUE` masks are reshaped with the
+#' output, while absent masks remain absent.
 #'
 #' @param x A hyperdesign object
-#' @param X A preprocessing specification (e.g., from recipes package)
+#' @param X A preprocessing specification supported by `multivarious`, such as
+#'   `multivarious::center()`.
 #' @param ... Additional arguments (not used)
 #' @return A hyperdesign with transformed data and a \code{preproc} attribute
 #'   containing the fitted preprocessing objects
 #'
 #' @examples
-#' \dontrun{
 #' d1 <- multidesign(matrix(rnorm(10*5), 10, 5),
 #'                   data.frame(cond = rep(c("A","B"), 5)))
 #' d2 <- multidesign(matrix(rnorm(10*5), 10, 5),
 #'                   data.frame(cond = rep(c("A","B"), 5)))
 #' hd <- hyperdesign(list(d1, d2))
-#' hd_transformed <- init_transform(hd, recipes::recipe(~ ., data = as.data.frame(d1$x)))
-#' }
+#' hd_transformed <- init_transform(hd, multivarious::center())
 #'
 #' @family hyperdesign functions
 #' @method init_transform hyperdesign
 #' @export
 init_transform.hyperdesign <- function(x, X, ...) {
-  ## pre-processors
-  proclist <- lapply(seq_along(x), function(i) {
-    multivarious::fresh(X) %>% recipes::prep()
-  })
+  partially_masked <- vapply(x, function(block) {
+    mask <- cell_mask(block)
+    !is.null(mask) && !all(mask)
+  }, logical(1))
+  if (any(partially_masked)) {
+    stop(
+      "`init_transform()` cannot transform partial cell masks because the preprocessor has no declared mask transformation.",
+      call. = FALSE
+    )
+  }
 
+  fitted <- lapply(seq_along(x), function(i) {
+    Xi <- x[[i]]$x
+    multivarious::fit_transform(multivarious::fresh(X), Xi, ...)
+  })
+  proclist <- lapply(fitted, `[[`, "preproc")
   names(proclist) <- names(x)
 
   ## subject-split and pre-processed data
-  out <- lapply(seq_along(proclist), function(i) {
-    p <- proclist[[i]]
-    Xi <- x[[i]]$x
-    Xout <- multivarious::init_transform(p, Xi)
-    multidesign(Xout, x[[i]]$design)
+  out <- lapply(seq_along(fitted), function(i) {
+    Xout <- fitted[[i]]$transformed
+    column_design_out <- x[[i]]$column_design
+    if (nrow(column_design_out) != ncol(Xout)) {
+      column_design_out <- tibble::tibble(.index = seq_len(ncol(Xout)))
+    }
+    input_mask <- cell_mask(x[[i]])
+    output_mask <- if (is.null(input_mask)) {
+      NULL
+    } else {
+      matrix(TRUE, nrow = nrow(Xout), ncol = ncol(Xout))
+    }
+    multidesign(
+      Xout,
+      x[[i]]$design,
+      column_design_out,
+      cells = output_mask
+    )
   })
+  names(out) <- names(x)
 
-  des <- hyperdesign(out)
+  des <- .rebuild_hyperdesign(x, out, block_names = names(x))
   attr(des, "preproc") <- proclist
   des
 }
@@ -248,6 +411,11 @@ init_transform.hyperdesign <- function(x, X, ...) {
 #' The function creates folds by splitting the data based on unique combinations of the specified
 #' variables. For each fold, one combination is held out as the assessment set, while the rest
 #' form the analysis set.
+#'
+#' When exactly the declared entity ID is supplied, each fold holds that entity
+#' out from every block in which it occurs. This is a generic data split; it is
+#' not the landmark-based-weighting or smoothness cross-validation procedure
+#' used by specialized generalized Procrustes solvers.
 #'
 #' Important considerations:
 #' * If a splitting variable is confounded with blocks (e.g., each subject is in a separate block),
@@ -296,6 +464,18 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
     }
     
     design_data
+  }
+
+  if (length(split_vars) == 1L && !is.null(entity_id(x)) &&
+      identical(split_vars[[1L]], entity_id(x))) {
+    return(.fold_over_entity_id(
+      x,
+      id = entity_id(x),
+      inclusion_condition = inclusion_condition,
+      exclusion_condition = exclusion_condition,
+      preserve_row_ids = preserve_row_ids,
+      apply_conditions = apply_conditions
+    ))
   }
 
   # If no splitting variables provided, create leave-one-block-out folds
@@ -480,6 +660,74 @@ fold_over.hyperdesign <- function(x, ..., inclusion_condition = list(), exclusio
   )
 }
 
+.fold_over_entity_id <- function(x, id, inclusion_condition,
+                                 exclusion_condition, preserve_row_ids,
+                                 apply_conditions) {
+  cr <- correspondence(x)
+  foldframe_parts <- list()
+  held_out <- list()
+  fold_id <- 0L
+
+  for (global_id in cr$global_ids) {
+    entity_parts <- list()
+    row_ids <- list()
+
+    for (block_pos in seq_along(x)) {
+      local_ids <- cr$ids[[block_pos]]
+      local_rows <- which(local_ids == global_id)
+      if (length(local_rows) == 0L) {
+        next
+      }
+
+      design_subset <- x[[block_pos]]$design[local_rows, , drop = FALSE]
+      design_subset <- apply_conditions(
+        design_subset,
+        inclusion_condition,
+        exclusion_condition
+      )
+      if (nrow(design_subset) == 0L) {
+        next
+      }
+
+      selected_rows <- as.integer(design_subset$.index)
+      entity_parts[[length(entity_parts) + 1L]] <- tibble::tibble(
+        .block = block_pos,
+        indices = list(selected_rows),
+        .splitvar = paste0(id, "_", global_id)
+      )
+      row_ids[[names(x)[[block_pos]]]] <- source_row_ids(design_subset)
+    }
+
+    if (length(entity_parts) == 0L) {
+      next
+    }
+
+    fold_id <- fold_id + 1L
+    part <- dplyr::bind_rows(entity_parts)
+    part$.fold <- fold_id
+    foldframe_parts[[fold_id]] <- part
+
+    info <- stats::setNames(list(global_id), id)
+    if (preserve_row_ids) {
+      info$row_ids <- row_ids
+    }
+    held_out[[fold_id]] <- info
+  }
+
+  if (length(foldframe_parts) == 0L) {
+    stop("No valid entity folds remain after applying conditions.", call. = FALSE)
+  }
+
+  build_hyperdesign_foldlist(
+    x,
+    dplyr::bind_rows(foldframe_parts),
+    held_out = held_out,
+    assessment_mode = "hyperdesign",
+    drop_empty_analysis_blocks = TRUE,
+    preserve_row_ids = preserve_row_ids
+  )
+}
+
 
 #' Extract Design Information from Hyperdesign
 #'
@@ -573,7 +821,11 @@ column_design.hyperdesign <- function(x, block, ...) {
 #' @description
 #' Converts a hyperdesign object into a single multidesign by row-stacking
 #' the data matrices and combining the design data frames. All blocks must
-#' have the same number of columns and identical column designs.
+#' have the same number of columns and identical column designs. This operation
+#' never joins rows by the declared entity ID. A hyperdesign declared with
+#' `space = "block"` is refused because its block columns are not comparable.
+#' Stored masks are row-stacked with the data. If only some blocks have masks,
+#' unmasked blocks are treated as all observed in the combined mask.
 #'
 #' @param x A hyperdesign object
 #' @param .id Optional character string. If provided, a column with this name
@@ -593,6 +845,13 @@ column_design.hyperdesign <- function(x, block, ...) {
 #' @rdname as_multidesign
 #' @export
 as_multidesign.hyperdesign <- function(x, .id = NULL, ...) {
+  if (identical(column_space(x), "block")) {
+    stop(
+      "Cannot row-stack a hyperdesign with `space = \"block\"`; block columns are not declared comparable.",
+      call. = FALSE
+    )
+  }
+
   # Validate same ncol
   ncols <- sapply(x, function(d) ncol(d$x))
   if (length(unique(ncols)) > 1) {
@@ -609,6 +868,19 @@ as_multidesign.hyperdesign <- function(x, .id = NULL, ...) {
 
   # Row-stack data matrices
   X <- do.call(rbind, lapply(x, function(d) d$x))
+  any_masks <- any(vapply(x, has_cell_mask, logical(1)))
+  cells <- if (any_masks) {
+    do.call(rbind, lapply(x, function(block) {
+      mask <- cell_mask(block)
+      if (is.null(mask)) {
+        matrix(TRUE, nrow = nrow(block$x), ncol = ncol(block$x))
+      } else {
+        mask
+      }
+    }))
+  } else {
+    NULL
+  }
 
   # Combine designs using common_vars
   cvars <- attr(x, "common_vars")
@@ -625,14 +897,15 @@ as_multidesign.hyperdesign <- function(x, .id = NULL, ...) {
   })
   design_df <- dplyr::bind_rows(design_list)
 
-  multidesign(X, design_df, base_cd)
+  multidesign(X, design_df, base_cd, cells = cells)
 }
 
 #' @rdname select_variables
 #' @export
 select_variables.hyperdesign <- function(x, ...) {
   out <- lapply(x, function(d) select_variables(d, ...))
-  hyperdesign(out, names(x))
+  names(out) <- names(x)
+  .rebuild_hyperdesign(x, out, block_names = names(x))
 }
 
 #' Subset a Hyperdesign Object
@@ -659,17 +932,77 @@ select_variables.hyperdesign <- function(x, ...) {
 #' # Keep only condition A
 #' subset_hd <- subset(hd, condition == "A")
 subset.hyperdesign <- function(x, fexpr, ...) {
-  out <- lapply(x, function(d) {
-    subset(d, !!rlang::enquo(fexpr))
+  filter_expr <- rlang::enquo(fexpr)
+  selected <- lapply(x, function(d) {
+    design_filtered <- dplyr::filter(d$design, !!filter_expr)
+    if (nrow(design_filtered) == 0L) {
+      return(list(block = NULL, rows = integer()))
+    }
+    rows <- design_filtered$.index
+    design_filtered$.index <- NULL
+    list(
+      block = multidesign(
+        d$x[rows, , drop = FALSE],
+        design_filtered,
+        d$column_design,
+        cells = if (is.null(cell_mask(d))) {
+          NULL
+        } else {
+          cell_mask(d)[rows, , drop = FALSE]
+        }
+      ),
+      rows = as.integer(rows)
+    )
   })
 
-  rem <- unlist(purrr::map(out, is.null))
+  rem <- vapply(selected, function(item) is.null(item$block), logical(1))
   if (sum(rem) == length(x)) {
     stop("subset expression does not match any rows in hyperdesign `x`")
   }
 
   onam <- names(x)[!rem]
-  hyperdesign(out[!rem], onam)
+  out <- lapply(selected[!rem], `[[`, "block")
+  names(out) <- onam
+  row_positions <- lapply(selected[!rem], `[[`, "rows")
+  names(row_positions) <- onam
+  .rebuild_hyperdesign(
+    x,
+    out,
+    block_names = onam,
+    row_positions = row_positions
+  )
+}
+
+.rebuild_hyperdesign <- function(source, blocks, block_names = names(blocks),
+                                 row_positions = NULL) {
+  .check_hyperdesign(source)
+  positional <- identical(
+    attr(source, "correspondence_assumption", exact = TRUE),
+    "positional"
+  )
+
+  if (positional && !is.null(row_positions) && length(row_positions) > 1L) {
+    reference <- as.integer(row_positions[[1L]])
+    same_positions <- vapply(
+      row_positions[-1L],
+      function(rows) identical(as.integer(rows), reference),
+      logical(1)
+    )
+    if (!all(same_positions)) {
+      stop(
+        "Positional correspondence requires identical retained row positions across blocks.",
+        call. = FALSE
+      )
+    }
+  }
+
+  hyperdesign(
+    blocks,
+    block_names = block_names,
+    id = entity_id(source),
+    space = column_space(source),
+    positional = positional
+  )
 }
 
 #' Print Method for Hyperdesign Objects
@@ -688,6 +1021,32 @@ print.hyperdesign <- function(x, ...) {
 
   # Number of blocks
   cat(crayon::bold("\nNumber of blocks: "), crayon::green(length(x)), "\n")
+
+  id <- entity_id(x)
+  assumption <- attr(x, "correspondence_assumption", exact = TRUE)
+  space <- column_space(x)
+  contracted <- !is.null(id) || !is.null(assumption) || !is.null(space)
+
+  if (contracted) {
+    cat(crayon::bold("Contract:\n"))
+    if (!is.null(id)) {
+      cat("  ", crayon::bold("Entity ID:"), crayon::green(id), "\n")
+    } else if (identical(assumption, "positional")) {
+      cat("  ", crayon::bold("Entity ID:"), crayon::green("<positional>"), "\n")
+    } else {
+      cat("  ", crayon::bold("Entity ID:"), "<unset>\n")
+    }
+    cat("  ", crayon::bold("Column space:"),
+        if (is.null(space)) "<unset>" else crayon::green(space), "\n")
+
+    if (has_correspondence(x)) {
+      corr <- correspondence(x)
+      cat("  ", crayon::bold("Global entities:"),
+          crayon::green(corr$n_global), "\n")
+      cat("  ", crayon::bold("Overlap connected:"),
+          crayon::green(corr$overlap$connected), "\n")
+    }
+  }
 
   # Block details
   for (i in seq_along(x)) {
@@ -793,7 +1152,11 @@ print.foldlist <- function(x, ...) {
         crayon::green(analysis_size), " observations\n", sep="")
 
     # Assessment set information
-    assessment_size <- nrow(fold_info$assessment$design)
+    assessment_size <- if (inherits(fold_info$assessment, "hyperdesign")) {
+      sum(vapply(fold_info$assessment, function(b) nrow(b$design), integer(1)))
+    } else {
+      nrow(fold_info$assessment$design)
+    }
     cat("  ", crayon::white("*"), " Assessment Set: ",
         crayon::green(assessment_size), " observations\n", sep="")
 

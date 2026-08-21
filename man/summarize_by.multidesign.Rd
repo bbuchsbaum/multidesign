@@ -4,7 +4,7 @@
 \alias{summarize_by.multidesign}
 \title{Summarize a Multidesign Object by Design Variables}
 \usage{
-\method{summarize_by}{multidesign}(x, ..., sfun = colMeans, extract_data = FALSE)
+\method{summarize_by}{multidesign}(x, ..., sfun = colMeans, extract_data = FALSE, aggregate = NULL)
 }
 \arguments{
 \item{x}{A multidesign object}
@@ -14,6 +14,9 @@
 \item{sfun}{Summary function to apply (default is colMeans)}
 
 \item{extract_data}{Logical; whether to extract raw data instead of computing summary}
+
+\item{aggregate}{Optional explicit cellwise aggregation rule. Required when
+`x` has a cell mask; accepts `"mean"` or a scalar-returning function.}
 }
 \value{
 A new multidesign object containing:
@@ -37,6 +40,13 @@ means_by_cond <- summarize_by(mds, condition)
 
 # Get means by condition and block
 means_by_both <- summarize_by(mds, condition, block)
+
+# Masked summaries require an explicit coordinate-wise rule
+mask <- matrix(TRUE, nrow(X), ncol(X))
+mask[1:10, 1] <- FALSE
+masked <- multidesign(X, Y, cells = mask)
+masked_means <- summarize_by(masked, condition, aggregate = "mean")
+cell_mask(masked_means)
 
 }
 \seealso{
