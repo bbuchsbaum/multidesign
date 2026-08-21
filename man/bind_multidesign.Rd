@@ -19,7 +19,8 @@ A new multidesign object containing the concatenated data
 This function row-binds the observation matrices and design data frames
 of several multidesign objects. All input multidesigns must share the
 same column design. Optionally, an identifier column can be added to
-track the source of each observation.
+track the source of each observation. Explicit cell masks are row-bound; if
+only some inputs are masked, unmasked inputs are treated as all observed.
 }
 \examples{
 X1 <- matrix(rnorm(10*5), 10, 5)

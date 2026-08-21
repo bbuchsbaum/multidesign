@@ -9,31 +9,17 @@
 coverage](https://codecov.io/gh/bbuchsbaum/multidesign/graph/badge.svg)](https://app.codecov.io/gh/bbuchsbaum/multidesign)
 <!-- badges: end -->
 
+[Getting started](vignettes/Introduction.Rmd) · [Class
+overview](vignettes/class_overview.Rmd) · [Changelog](NEWS.md) · [Issue
+tracker](https://github.com/bbuchsbaum/multidesign/issues)
+
 `multidesign` is an R package for multivariate experimental data where
 the matrix alone is not enough. It keeps observation-level design
 metadata and variable-level metadata attached to the data, so
 subsetting, grouping, splitting, and cross-validation stay aligned.
 
-This is especially useful for workflows in neuroimaging, behavioral
-science, psychophysics, and other settings where you need to manage:
-
-- observations such as trials, scans, or time points
-- variables such as ROIs, sensors, or engineered features
-- row-wise design factors such as condition, run, session, or subject
-- multi-block datasets spanning subjects, sessions, or modalities
-
-## Why use `multidesign`?
-
-- Keep the data matrix, row design, and optional column metadata in one
-  object.
-- Filter observations with design-aware `subset()` semantics.
-- Select variables using column metadata via `select_variables()`.
-- Split and summarize by experimental factors with `split()` and
-  `summarize_by()`.
-- Build cross-validation folds that respect your design with
-  `fold_over()` and `cv_rows()`.
-- Scale from a single matrix to multi-subject or lazy-loading workflows
-  with `hyperdesign` and `multiframe`.
+> **Status:** Pre-release and source-only. The API may change before the
+> first stable release.
 
 ## Installation
 
@@ -45,12 +31,52 @@ install.packages("remotes")
 remotes::install_github("bbuchsbaum/multidesign")
 ```
 
+## Quick start
+
+``` r
+library(multidesign)
+
+X <- matrix(seq_len(24), nrow = 6)
+md <- multidesign(
+  X,
+  tibble::tibble(condition = rep(c("face", "house"), each = 3)),
+  tibble::tibble(network = rep(c("visual", "control"), each = 2))
+)
+
+face_visual <- md |>
+  subset(condition == "face") |>
+  select_variables(network == "visual")
+
+xdata(face_visual)
+#>      [,1] [,2]
+#> [1,]    1    7
+#> [2,]    2    8
+#> [3,]    3    9
+```
+
+The matrix, row design, and column metadata stay synchronized through
+both operations. This is the ordinary single-block workflow; use
+`hyperdesign` when the data naturally contains several related blocks.
+
+## Why use `multidesign`?
+
+- Keep the data matrix, row design, optional column metadata, and
+  explicit cell-observation mask together.
+- Filter observations and variables without manually realigning metadata
+  or masks.
+- Split, summarize, and build cross-validation folds from experimental
+  design variables.
+- Represent corresponding entities across blocks without changing the
+  package’s row-centric matrix orientation.
+- Scale to multi-subject, multi-session, or lazy-loading workflows with
+  `hyperdesign` and `multiframe`.
+
 ## Core objects
 
 | Class | Use it when… |
 |----|----|
 | `multidesign` | You have one data matrix plus row-wise design information and optional column metadata. |
-| `hyperdesign` | You have multiple related `multidesign` objects, such as one per subject or session. |
+| `hyperdesign` | You have multiple related blocks, optionally linked by corresponding entity IDs. |
 | `multiframe` | Your observations are expensive to materialize and you want lazy evaluation. |
 | `multiblock` | You need lower-level stacked matrix operations without the full design abstraction. |
 
@@ -58,11 +84,118 @@ Most workflows start with `multidesign` and move to `hyperdesign` when
 the data naturally breaks into subject-, session-, or modality-level
 blocks.
 
-## Example
+## Corresponding rows and partial observations
+
+Rows usually represent trials, scans, or other independent observations.
+They can also represent known entities—such as landmarks or tasks—that
+recur across blocks. A `hyperdesign` can declare that second role with
+an entity key:
 
 ``` r
-library(multidesign)
+shape_a <- multidesign(
+  matrix(c(NA, 0, 1, 0, 0, 1), ncol = 2, byrow = TRUE),
+  tibble::tibble(landmark = c("A", "B", "C")),
+  cells = matrix(
+    c(TRUE, TRUE, TRUE, FALSE, FALSE, FALSE),
+    ncol = 2,
+    byrow = TRUE
+  )
+)
+shape_b <- multidesign(
+  matrix(c(1, 0, 0, 1, 1, 1), ncol = 2, byrow = TRUE),
+  tibble::tibble(landmark = c("B", "C", "D"))
+)
 
+shapes <- hyperdesign(
+  list(shape_a = shape_a, shape_b = shape_b),
+  id = "landmark",
+  space = "common"
+)
+
+corr <- correspondence(shapes)
+corr$global_ids
+#> [1] "A" "B" "C" "D"
+do.call(rbind, corr$row_map)
+#>         [,1] [,2] [,3]
+#> shape_a    1    2    3
+#> shape_b    2    3    4
+corr$overlap$pair_n
+#>         shape_a shape_b
+#> shape_a       3       2
+#> shape_b       2       3
+
+aligned <- align_by_id(shapes)
+aligned$observed
+#>   shape_a shape_b
+#> A    TRUE   FALSE
+#> B    TRUE    TRUE
+#> C    TRUE    TRUE
+#> D   FALSE    TRUE
+aligned$cells[, , "shape_a"]
+#>       variable
+#> entity     1     2
+#>      A  TRUE  TRUE
+#>      B  TRUE FALSE
+#>      C FALSE FALSE
+#>      D FALSE FALSE
+aligned$x[, , "shape_a"]
+#>       variable
+#> entity  1  2
+#>      A NA  0
+#>      B  1 NA
+#>      C NA NA
+#>      D NA NA
+
+correspondence(shapes, sort_ids = TRUE)$global_ids
+#> [1] "A" "B" "C" "D"
+
+stopifnot(all(vapply(seq_along(shapes), function(i) {
+  identical(corr$global_ids[corr$row_map[[i]]], corr$ids[[i]])
+}, logical(1))))
+```
+
+The aligned result distinguishes three states that can all display as
+`NA` in `aligned$x`: landmark D is absent from `shape_a` (`observed` is
+`FALSE`), landmark C is present but has an all-`FALSE` cell-mask row,
+and landmark A’s first coordinate is observed even though its stored
+value is `NA`. The `fill` argument changes only the displayed value for
+absent or masked cells; consult `observed` and `cells` for their
+meaning. A missing value in `x` never creates a mask implicitly.
+
+This is a role of the row key, not a second matrix orientation. **Do not
+store features × observations in `x` to satisfy a left-action formula.**
+A solver that uses left-action notation should transpose at its
+boundary.
+
+The declarations answer different questions: `common_vars` records
+design columns shared by every block (schema), `id` names values that
+join rows (correspondence), and `space` says whether columns are shared
+axes (`"common"`) or block-specific variables (`"block"`).
+`as_multidesign()` always row-stacks; it never joins by `id`, and it
+refuses `space = "block"`. `align_by_id()` is the explicit join: it
+returns common-space arrays on the global entity universe, but it does
+not fit an alignment model.
+
+Cell masks move with ordinary row and column subsets. When masked rows
+or duplicate entity keys must be combined, aggregation is explicit:
+`summarize_by(x, group, aggregate = "mean")` and
+`hyperdesign(blocks, id = "landmark", aggregate = "mean")`. A custom
+scalar-returning function may replace `"mean"`. Stacking promotes an
+unmasked block to all observed when another block has a mask.
+Preprocessing and dimensionality reduction reject partial masks because
+those operations do not declare how the mask itself transforms.
+
+These contracts let downstream packages validate data for generalized
+Procrustes analysis without putting transforms, gauges, fitting, or
+certification in `multidesign`. Likewise, `fold_over(shapes, landmark)`
+holds an entity out from all blocks where it occurs; it is an ordinary
+data split, not a specialized Bai–Bartoli/LBW cross-validation engine.
+Use `positional = TRUE` only when equal row positions really are the
+correspondence and that fragile assumption is intentional.
+
+## Design-aware cross-validation
+
+``` r
 set.seed(42)
 
 # Simulate a trial-by-feature matrix
@@ -132,14 +265,8 @@ summary(cv)
 - [Package website](https://bbuchsbaum.github.io/multidesign/)
 - [Getting started vignette](vignettes/Introduction.Rmd)
 - [Class overview vignette](vignettes/class_overview.Rmd)
+- [Changelog](NEWS.md)
 - [Issue tracker](https://github.com/bbuchsbaum/multidesign/issues)
-
-## Development status
-
-The package already includes tests for the core data structures and
-cross-validation pipeline, but the API is still evolving. Expect the
-README and vignettes to be the best entry points while the package
-matures.
 
 ## Albers theme
 

@@ -30,6 +30,11 @@ A reduced_multidesign object containing:
 Performs dimensionality reduction on the data matrix of a multidesign object while preserving
 the design structure. By default uses PCA, but supports any reduction method that returns
 a projector object.
+
+A partial cell mask is rejected because a projector does not declare how
+cell observation transforms into the reduced coordinates. An all-`TRUE`
+explicit mask is retained with the reduced dimensions; `NULL` remains
+`NULL`.
 }
 \examples{
 \dontrun{

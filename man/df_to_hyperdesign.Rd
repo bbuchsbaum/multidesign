@@ -4,7 +4,16 @@
 \alias{df_to_hyperdesign}
 \title{Convert a Data Frame to a Hyperdesign Object}
 \usage{
-df_to_hyperdesign(data, design_vars, x_vars, split_var)
+df_to_hyperdesign(
+  data,
+  design_vars,
+  x_vars,
+  split_var,
+  id = NULL,
+  space = NULL,
+  positional = FALSE,
+  aggregate = NULL
+)
 }
 \arguments{
 \item{data}{A data frame or tibble containing both design variables and response variables}
@@ -14,6 +23,17 @@ df_to_hyperdesign(data, design_vars, x_vars, split_var)
 \item{x_vars}{Character vector specifying the names of response variables to extract}
 
 \item{split_var}{Character string naming the variable to split the data on (e.g., "subject" or "session")}
+
+\item{id}{Optional entity ID column forwarded to [hyperdesign()]. The column
+must be included in `design_vars`.}
+
+\item{space}{Optional column-space declaration forwarded to [hyperdesign()].}
+
+\item{positional}{Logical positional-correspondence declaration forwarded to
+[hyperdesign()].}
+
+\item{aggregate}{Optional duplicate-entity aggregation rule forwarded to
+[hyperdesign()].}
 }
 \value{
 A hyperdesign object containing multiple multidesign objects, one for each unique value in split_var

@@ -28,7 +28,11 @@ by collapsing its structure.
 
 Converts a hyperdesign object into a single multidesign by row-stacking
 the data matrices and combining the design data frames. All blocks must
-have the same number of columns and identical column designs.
+have the same number of columns and identical column designs. This operation
+never joins rows by the declared entity ID. A hyperdesign declared with
+`space = "block"` is refused because its block columns are not comparable.
+Stored masks are row-stacked with the data. If only some blocks have masks,
+unmasked blocks are treated as all observed in the combined mask.
 }
 \examples{
 d1 <- multidesign(matrix(rnorm(10*5), 10, 5),

@@ -117,7 +117,13 @@ slice_multidesign_rows <- function(x, indices, preserve_row_ids = FALSE) {
   prepared <- prepare_design_row_ids(x$design[indices, , drop = FALSE], preserve_row_ids = preserve_row_ids)
   design_subset <- prepared$design
   design_subset$.index <- NULL
-  multidesign(x$x[indices, , drop = FALSE], design_subset, x$column_design)
+  mask <- cell_mask(x)
+  multidesign(
+    x$x[indices, , drop = FALSE],
+    design_subset,
+    x$column_design,
+    cells = if (is.null(mask)) NULL else mask[indices, , drop = FALSE]
+  )
 }
 
 exclude_multidesign_rows <- function(x, indices, drop_empty = FALSE, preserve_row_ids = FALSE) {
@@ -326,11 +332,25 @@ build_hyperdesign_foldlist <- function(x,
 
   extract <- function(fold_id) {
     fold_rows <- foldframe[foldframe$.fold == fold_id, , drop = FALSE]
+    assessment_positions <- stats::setNames(
+      lapply(fold_rows$indices, as.integer),
+      block_names[fold_rows$.block]
+    )
     assessment_blocks <- lapply(seq_len(nrow(fold_rows)), function(i) {
       block_pos <- fold_rows$.block[[i]]
       slice_multidesign_rows(x[[block_pos]], fold_rows$indices[[i]], preserve_row_ids = preserve_row_ids)
     })
     assessment_names <- block_names[fold_rows$.block]
+
+    analysis_positions <- lapply(seq_along(x), function(i) {
+      match_idx <- which(fold_rows$.block == i)
+      if (length(match_idx) == 0L) {
+        seq_len(nrow(x[[i]]$x))
+      } else {
+        setdiff(seq_len(nrow(x[[i]]$x)), fold_rows$indices[[match_idx[[1L]]]])
+      }
+    })
+    names(analysis_positions) <- block_names
 
     analysis_blocks <- lapply(seq_along(x), function(i) {
       match_idx <- which(fold_rows$.block == i)
@@ -349,6 +369,7 @@ build_hyperdesign_foldlist <- function(x,
     if (drop_empty_analysis_blocks) {
       keep <- !vapply(analysis_blocks, is.null, logical(1))
       analysis_blocks <- analysis_blocks[keep]
+      analysis_positions <- analysis_positions[keep]
       analysis_names <- block_names[keep]
     } else {
       analysis_names <- block_names
@@ -359,14 +380,25 @@ build_hyperdesign_foldlist <- function(x,
     }
 
     fold <- list(
-      analysis = hyperdesign(analysis_blocks, block_names = analysis_names),
+      analysis = .rebuild_hyperdesign(
+        x,
+        analysis_blocks,
+        block_names = analysis_names,
+        row_positions = analysis_positions
+      ),
       assessment = if (assessment_mode == "multidesign") {
         if (length(assessment_blocks) != 1) {
           stop("Single-block assessment mode requires exactly one assessment block per fold.")
         }
         assessment_blocks[[1]]
       } else {
-        hyperdesign(assessment_blocks, block_names = assessment_names)
+        names(assessment_blocks) <- assessment_names
+        .rebuild_hyperdesign(
+          x,
+          assessment_blocks,
+          block_names = assessment_names,
+          row_positions = assessment_positions
+        )
       }
     )
 

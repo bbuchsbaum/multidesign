@@ -1,0 +1,44 @@
+---
+title: "Test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+set.seed(42)
+library(multidesign)
+library(tibble)
+library(dplyr)
+```
+
+```{r test}
+n_trials <- 40
+n_regions <- 50
+X <- matrix(rnorm(n_trials * n_regions), n_trials, n_regions)
+
+design_df <- tibble(
+  condition = rep(c("face", "house"), each = 20),
+  trial = 1:40,
+  run = rep(1:4, each = 10)
+)
+
+column_info <- tibble(
+  region = paste0("ROI_", 1:n_regions),
+  hemisphere = rep(c("left", "right"), 25),
+  network = rep(c("visual", "frontal", "parietal", "temporal", "default"), 10)
+)
+
+mds <- multidesign(X, design_df, column_info)
+folds <- fold_over(mds, run)
+folds
+
+# Debug output
+cat("folds class:", class(folds), "\n")
+
+fold1 <- folds[[1]]
+cat("fold1 class:", class(fold1), "\n")
+cat("fold1 type:", typeof(fold1), "\n")
+
+nrow(xdata(fold1$analysis))
+nrow(xdata(fold1$assessment))
+```

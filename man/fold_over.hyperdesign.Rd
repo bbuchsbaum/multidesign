@@ -37,6 +37,11 @@ The function creates folds by splitting the data based on unique combinations of
 variables. For each fold, one combination is held out as the assessment set, while the rest
 form the analysis set.
 
+When exactly the declared entity ID is supplied, each fold holds that entity
+out from every block in which it occurs. This is a generic data split; it is
+not the landmark-based-weighting or smoothness cross-validation procedure
+used by specialized generalized Procrustes solvers.
+
 Important considerations:
 * If a splitting variable is confounded with blocks (e.g., each subject is in a separate block),
   the function will fail as there would be no training data available for that block.

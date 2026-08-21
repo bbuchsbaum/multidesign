@@ -25,7 +25,6 @@ Imports:
     tidyr,
     tidyselect,
     magrittr,
-    recipes,
     rlang,
     stats,
     utils
